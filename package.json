@@ -1,0 +1,38 @@
+{
+  "name": "prawo-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Prawo.ai – aplikacja demonstracyjna do tworzenia, analizy, negocjowania i podpisywania umów oraz rozmowy z asystentem prawnym.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/source-serif-4": "^5.3.1",
+    "@fontsource/caveat": "^5.3.0",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.69.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.4",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "tailwindcss": "^4.3.4",
+    "typescript": "~5.9",
+    "vite": "^8.3.6"
+  }
+}
