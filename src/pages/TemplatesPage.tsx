@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { ArrowRight, Search, SearchX, Users, X } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowRight, BadgeCheck, Search, SearchX, Users, X } from 'lucide-react'
+import { TemplateCover } from '../components/TemplateCover'
 import { CATEGORIES, RELATION_LABELS, TEMPLATES, TARGET_LIBRARY_SIZE, getCategory, type CategoryId } from '../data/templates'
 import type { PartyRelation } from '../types'
-import { Badge, Button, ButtonLink, EmptyState, PageHeader } from '../components/ui'
+import { Badge, Button, EmptyState, PageHeader } from '../components/ui'
 import { cx, plural } from '../lib/utils'
 
 function normalize(s: string) {
@@ -123,32 +124,32 @@ export default function TemplatesPage() {
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {results.map((t) => (
-                <li key={t.id} className="flex flex-col rounded-2xl bg-white p-4 ring-1 ring-slate-200/80 transition hover:shadow-md hover:ring-brand-200">
-                  <div className="flex items-start justify-between gap-2">
-                    <Badge tone="slate">{getCategory(t.category).short}</Badge>
-                    {t.popular && <Badge tone="brand">Popularny</Badge>}
-                  </div>
-                  <h3 className="mt-3 font-semibold leading-snug text-ink-900">{t.name}</h3>
-                  <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-600">{t.description}</p>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
-                    <Users className="size-3.5 shrink-0 text-slate-400" aria-hidden />
-                    <span>
-                      <span className="font-medium text-slate-800">{t.roles[0]}</span> i <span className="font-medium text-slate-800">{t.roles[1]}</span>
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {t.relations.map((r) => (
-                      <span key={r} className="rounded bg-sand-100 px-1.5 py-0.5 text-[11px] text-slate-600">
-                        {RELATION_LABELS[r]}
+                <li key={t.id}>
+                  <Link to={`/wzory/${t.id}`} className="group flex h-full flex-col overflow-hidden rounded-3xl bg-white ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:shadow-xl hover:ring-brand-200">
+                    <div className="relative bg-gradient-to-b from-sand-100 to-sand-50 px-6 pb-5 pt-6">
+                      <div className="absolute left-3 top-3 flex gap-1">
+                        {t.popular && <Badge tone="brand">Popularny</Badge>}
+                        {t.status === 'zatwierdzony' && t.review && (
+                          <Badge tone="brand">
+                            <BadgeCheck className="size-3" aria-hidden /> {t.review.reviewedBy}
+                          </Badge>
+                        )}
+                      </div>
+                      <TemplateCover t={t} size="sm" />
+                    </div>
+                    <div className="flex flex-1 flex-col p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-700">{getCategory(t.category).short}</p>
+                      <h3 className="mt-1 font-serif text-[17px] font-semibold leading-snug text-ink-900">{t.name}</h3>
+                      <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-600">{t.description}</p>
+                      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-600">
+                        <Users className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+                        {t.roles[0]} · {t.roles[1]}
+                      </p>
+                      <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-900 group-hover:text-brand-700">
+                        Wykorzystaj wzór <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
                       </span>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                    <span className="text-[11px] text-slate-500">Wzór przykładowy</span>
-                    <ButtonLink to={`/wzory/${t.id}`} size="sm" variant="primary" aria-label={`Utwórz: ${t.name}`}>
-                      Utwórz <ArrowRight className="size-3.5" aria-hidden />
-                    </ButtonLink>
-                  </div>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>

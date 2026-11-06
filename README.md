@@ -39,6 +39,12 @@ Na stronie głównej wpisujesz własnymi słowami, jaką umowę potrzebujesz (al
 
 Zmienne: `OPENAI_INTAKE_MODEL` (domyślnie jak `OPENAI_MODEL`), `OPENAI_INTAKE_EFFORT` (domyślnie `low`), `INTAKE_LIMIT_PER_HOUR` (domyślnie 80 wiadomości na IP).
 
+### Strona wzoru
+
+Każdy wzór ma stronę `/wzory/:id` z okładką 3D, przyciskiem „Wykorzystaj i dostosuj wzór”, polem „Na czym Ci zależy?” (przekazuje oczekiwania do rozmowy z asystentem, a bez AI – do kreatora) i listą paragrafów. Kreator krok po kroku jest pod `/wzory/:id/kreator`.
+
+Plakietka „Wzór stworzony i potwierdzony przez PRAVNA.pl” pojawia się tylko przy wzorach wpisanych do `APPROVED_TEMPLATES` w `src/data/templates.ts` – dopisz wzór dopiero po faktycznym zatwierdzeniu jego treści.
+
 ### Moje wzory i moje dane
 
 - W widoku umowy ikoną zakładki zapisujesz ją jako **własny wzór**. Na stronie głównej wybierasz go w sekcji „Twoje wzory”, wklejasz tylko dane drugiej strony – model je rozpoznaje, a `POST /api/retarget` przeredagowuje odniesienia do poprzedniego kontrahenta (z poprawną odmianą). Pozostałości są zgłaszane do sprawdzenia.

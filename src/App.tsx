@@ -3,6 +3,7 @@ import { AppLayout } from './components/Layout'
 import HomePage from './pages/HomePage'
 import TemplatesPage from './pages/TemplatesPage'
 import WizardPage from './pages/WizardPage'
+import TemplateDetailPage from './pages/TemplateDetailPage'
 import ContractsPage from './pages/ContractsPage'
 import AnalyzePage from './pages/AnalyzePage'
 import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
@@ -20,7 +21,8 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="nowa" element={<NewContractPage />} />
         <Route path="wzory" element={<TemplatesPage />} />
-        <Route path="wzory/:templateId" element={<WizardPage />} />
+        <Route path="wzory/:templateId" element={<TemplateDetailPage />} />
+        <Route path="wzory/:templateId/kreator" element={<WizardPage />} />
         <Route path="analiza" element={<AnalyzePage />} />
         <Route path="umowy" element={<ContractsPage />} />
         <Route path="umowy/:id" element={<OwnerContractPage />} />

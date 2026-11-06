@@ -202,12 +202,26 @@ const SEEDS: Seed[] = [
   { id: 'franczyza', name: 'Umowa franczyzy', description: 'Prowadzenie działalności pod marką i według standardów franczyzodawcy.', category: 'wspolnicy', roles: ['Franczyzodawca', 'Franczyzobiorca'], defaultKinds: ['firma', 'firma'], relations: ['b2b'], labels: { amount: 'Opłata wstępna (zł)', scope: 'Lokalizacja i zakres franczyzy' }, scopeHint: 'np. punkt z kawą na wynos w Gdańsku, opłata bieżąca 5% obrotu' },
 ]
 
-export const TEMPLATES: TemplateDefinition[] = SEEDS.map((s) => ({
-  ...s,
-  fields: s.fields ?? BY_CATEGORY[s.category].fields,
-  duties: s.duties ?? BY_CATEGORY[s.category].duties,
-  status: 'przykładowy',
-}))
+/**
+ * Wzory zatwierdzone przez kancelarię partnerską. Dopisz tu id wzoru dopiero wtedy,
+ * gdy jego treść została faktycznie przygotowana lub sprawdzona przez PRAVNA.pl –
+ * wtedy na stronie wzoru pojawi się plakietka „Wzór stworzony i potwierdzony przez PRAVNA.pl”.
+ */
+export const REVIEWER = 'PRAVNA.pl'
+export const APPROVED_TEMPLATES: Record<string, { reviewedAt: string; version: string }> = {
+  // 'zlecenie': { reviewedAt: '2026-11-06', version: '1.0' },
+}
+
+export const TEMPLATES: TemplateDefinition[] = SEEDS.map((s) => {
+  const approved = APPROVED_TEMPLATES[s.id]
+  return {
+    ...s,
+    fields: s.fields ?? BY_CATEGORY[s.category].fields,
+    duties: s.duties ?? BY_CATEGORY[s.category].duties,
+    status: approved ? 'zatwierdzony' : 'przykładowy',
+    review: approved ? { reviewedBy: REVIEWER, ...approved } : undefined,
+  }
+})
 
 /** Docelowa wielkość biblioteki (do komunikatów w UI). */
 export const TARGET_LIBRARY_SIZE = 100

@@ -172,7 +172,7 @@ export default function NewContractPage() {
           <p className="mt-1 text-sm text-slate-600">Kreator przeprowadzi Cię przez najważniejsze ustalenia krok po kroku.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {t && (
-              <ButtonLink to={`/wzory/${t.id}`} variant="accent" icon={<FilePlus2 className="size-4" />}>
+              <ButtonLink to={`/wzory/${t.id}/kreator`} variant="accent" icon={<FilePlus2 className="size-4" />}>
                 {t.name}
               </ButtonLink>
             )}

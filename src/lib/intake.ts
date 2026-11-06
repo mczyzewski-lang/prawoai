@@ -205,7 +205,7 @@ export function seedWizard(s: IntakeState): string {
   } catch {
     /* ignoruj */
   }
-  return `/wzory/${t.id}`
+  return `/wzory/${t.id}/kreator`
 }
 
 /** Bez modelu AI: dopasowanie wzoru po słowach kluczowych. */
