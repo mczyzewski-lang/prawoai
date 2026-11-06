@@ -12,7 +12,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 if (existsSync(join(ROOT, '.env'))) process.loadEnvFile(join(ROOT, '.env'))
 
 const PORT = Number(process.env.API_PORT || process.env.PORT || 8787)
-const API_KEY = process.env.OPENAI_API_KEY?.trim() || ''
+// Klucz bywa wklejany w cudzysłowie (KEY="sk-…") – usuwamy je.
+const API_KEY = (process.env.OPENAI_API_KEY ?? '').trim().replace(/^["']+|["']+$/g, '').trim()
 const MODEL = process.env.OPENAI_MODEL?.trim() || 'gpt-5.5'
 const BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, '')
 const MAX_CHARS = 120_000
