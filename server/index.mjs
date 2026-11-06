@@ -18,6 +18,10 @@ const BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com
 const MAX_CHARS = 120_000
 const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS || 180_000)
 const DIST = join(ROOT, 'dist')
+// Wersja działającego serwera – do sprawdzenia, czy wdrożenie jest aktualne (GET /api/status).
+const APP_VERSION = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8')).version
+const APP_COMMIT = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || '').slice(0, 7) || null
+const STARTED_AT = new Date().toISOString()
 // Prosty limit analiz na adres IP (chroni klucz OpenAI na publicznym serwerze).
 const LIMIT_PER_HOUR = Number(process.env.ANALYZE_LIMIT_PER_HOUR || 10)
 const INTAKE_LIMIT_PER_HOUR = Number(process.env.INTAKE_LIMIT_PER_HOUR || 80)
@@ -319,7 +323,7 @@ async function serveStatic(req, res) {
 
 createServer(async (req, res) => {
   try {
-    if (req.url === '/api/status' && req.method === 'GET') return send(res, 200, { ai: !!API_KEY, provider: 'openai', model: API_KEY ? MODEL : null })
+    if (req.url === '/api/status' && req.method === 'GET') return send(res, 200, { ai: !!API_KEY, provider: 'openai', model: API_KEY ? MODEL : null, version: APP_VERSION, commit: APP_COMMIT, startedAt: STARTED_AT, node: process.version }, { 'Cache-Control': 'no-store' })
     if (req.url === '/api/analyze' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Analiza AI nie jest skonfigurowana.', code: 'not_configured' })
       if (rateLimited(req)) return send(res, 429, { error: `Wykorzystano limit ${LIMIT_PER_HOUR} analiz na godzinę. Spróbuj później lub użyj analizy podstawowej.`, code: 'rate_limited' })

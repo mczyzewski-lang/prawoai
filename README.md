@@ -63,6 +63,8 @@ Repozytorium zawiera `railway.json` (build: `npm ci && npm run build`, start: `n
 2. W usłudze → **Variables** dodaj `OPENAI_API_KEY` (opcjonalnie `OPENAI_MODEL`, `ANALYZE_LIMIT_PER_HOUR`). **Nie** ustawiaj `API_PORT`.
 3. **Settings → Networking → Generate Domain** – otrzymasz publiczny adres `https://…up.railway.app`.
 
+**Czy wdrożenie jest aktualne?** Numer wersji i commita widać w prawym dolnym rogu aplikacji oraz pod adresem `/api/status` (pola `version`, `commit`, `startedAt`, `node`). Jeśli się nie zmieniają: w Railway → **Deployments** sprawdź, czy ostatnie wdrożenie ma status *Success* (przy *Failed* Railway nadal serwuje poprzednią wersję – zobacz **Build Logs**), a w **Settings → Source** – gałąź i włączone automatyczne wdrażanie. Wersja Node jest ustalona w `.nvmrc` / `.node-version` (22).
+
 Bez `OPENAI_API_KEY` aplikacja działa z analizą podstawową. Limit analiz AI: domyślnie 10 na godzinę na adres IP.
 
 ## Jak przetestować ścieżki demo
