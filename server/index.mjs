@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 if (existsSync(join(ROOT, '.env'))) process.loadEnvFile(join(ROOT, '.env'))
 
-const PORT = Number(process.env.API_PORT || process.env.PORT || 8787)
+// Na Railway (i innych hostingach) obowiązuje PORT nadany przez platformę; API_PORT – tylko lokalnie.
+const PORT = Number(process.env.RAILWAY_ENVIRONMENT_NAME && process.env.PORT ? process.env.PORT : process.env.API_PORT || process.env.PORT || 8787)
 // Klucz bywa wklejany w cudzysłowie (KEY="sk-…"), razem z nazwą zmiennej albo pod nazwą
 // z literówką/spacją – szukamy go odpornie. Do /api/status trafiają tylko NAZWY zmiennych.
 const OPENAI_ENV_NAMES = Object.keys(process.env).filter((k) => /openai/i.test(k))
