@@ -12,7 +12,6 @@ import {
   type IntakeState,
 } from './intake'
 import { applyAssistantResult, askContractAssistant } from './contractAssistant'
-import { DEFAULT_ANSWERS } from './contractGenerator'
 import { getTemplate } from '../data/templates'
 import { nowIso, uid } from './utils'
 
@@ -46,20 +45,33 @@ function stateFromMyTemplate(mt: MyTemplate): IntakeState {
 export async function generateFromPrompt(input: GenerateInput, onStage: (s: GenerateStage) => void): Promise<GenerateOutcome> {
   const prompt = input.prompt.trim()
 
-  // Bez modelu AI: kreator wybranego/dopasowanego wzoru z zapisanymi oczekiwaniami.
+  // Bez modelu AI: umowa ze wzoru z tym, co da się odczytać z opisu, i asystent w trybie podstawowym.
   if (!input.ai) {
     const id = input.templateHint ?? guessTemplate(prompt)
     const t = getTemplate(id ?? undefined)
     if (!t) return { kind: 'redirect', to: '/wzory' }
-    try {
-      localStorage.setItem(
-        `prawoai:wizard:${t.id}`,
-        JSON.stringify({ step: 0, myRole: null, parties: [0, 1].map((i) => ({ id: i ? 'B' : 'A', role: t.roles[i], kind: t.defaultKinds[i], name: '', idNumber: '', address: '', email: '', representative: '' })), answers: { ...DEFAULT_ANSWERS, extra: prompt ? `Ustalenia stron: ${prompt}` : '' }, clauses: null, title: t.name }),
-      )
-    } catch {
-      /* ignoruj */
-    }
-    return { kind: 'redirect', to: `/wzory/${t.id}/kreator` }
+    onStage('drafting')
+    const state = emptyIntake()
+    state.templateId = t.id
+    state.myRole = 'A'
+    const amount = prompt.match(/(\d[\d\s.]*\d|\d)(?:,\d{2})?\s*(?:zł|pln|złotych)/i)?.[1]?.replace(/[\s.]/g, '')
+    if (amount) state.answers.amount = amount
+    const wishes = prompt.replace(/^Chcę utworzyć:[^.]*\.\s*/i, '').replace(/^Zależy mi na:\s*/i, '').trim()
+    if (wishes) state.answers.extra = `Ustalenia, na których zależy Stronom: ${wishes.replace(/[.\s]+$/, '')}.`
+    if (input.ownParty) state.partyA = { ...input.ownParty }
+    let c = buildContractFromIntake(state, input.authorName)
+    const missing = [!c.parties[0].name && `dane strony „${t.roles[0]}”`, !c.parties[1].name && `dane strony „${t.roles[1]}”`, `przedmiot umowy (§ 2)`, !amount && t.fields.includes('amount') && 'kwotę'].filter(Boolean)
+    const msgs: ChatMessage[] = [
+      { id: uid('m'), role: 'user', text: prompt, createdAt: nowIso() },
+      {
+        id: uid('m'),
+        role: 'assistant',
+        text: `Przygotowałem projekt „${t.name}”${wishes ? ' i zapisałem Twoje oczekiwania w paragrafie „Dodatkowe ustalenia”' : ''}. Uzupełnij jeszcze: ${missing.join(', ')}. Dane stron poprawisz przyciskiem „Edytuj” przy kolumnach, a każdy zapis – klikając jego tytuł.`,
+        createdAt: nowIso(),
+      },
+    ]
+    c = { ...c, privateChats: { [c.ownerPartyId]: msgs } }
+    return { kind: 'contract', contract: c }
   }
 
   onStage('reading')
