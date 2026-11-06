@@ -42,6 +42,16 @@ Zmienne (`.env`): `OPENAI_API_KEY`, `OPENAI_MODEL` (domyślnie `gpt-5.5`), `OPEN
 
 Jeśli serwer działa za proxy HTTP (np. w środowisku firmowym), uruchom go z `NODE_USE_ENV_PROXY=1`, aby Node korzystał ze zmiennych `HTTPS_PROXY`.
 
+## Wdrożenie na Railway
+
+Repozytorium zawiera `railway.json` (build: `npm ci && npm run build`, start: `node server/index.mjs`, healthcheck `/api/status`). Serwer sam serwuje aplikację i API na porcie z `PORT`.
+
+1. railway.com → **New Project** → **Deploy from GitHub repo** → wybierz `prawoai` i gałąź z aplikacją.
+2. W usłudze → **Variables** dodaj `OPENAI_API_KEY` (opcjonalnie `OPENAI_MODEL`, `ANALYZE_LIMIT_PER_HOUR`). **Nie** ustawiaj `API_PORT`.
+3. **Settings → Networking → Generate Domain** – otrzymasz publiczny adres `https://…up.railway.app`.
+
+Bez `OPENAI_API_KEY` aplikacja działa z analizą podstawową. Limit analiz AI: domyślnie 10 na godzinę na adres IP.
+
 ## Jak przetestować ścieżki demo
 
 | Ścieżka | Jak |

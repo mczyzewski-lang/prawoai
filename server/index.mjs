@@ -18,6 +18,19 @@ const BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com
 const MAX_CHARS = 120_000
 const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS || 180_000)
 const DIST = join(ROOT, 'dist')
+// Prosty limit analiz na adres IP (chroni klucz OpenAI na publicznym serwerze).
+const LIMIT_PER_HOUR = Number(process.env.ANALYZE_LIMIT_PER_HOUR || 10)
+const hits = new Map()
+function rateLimited(req) {
+  const ip = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+  const now = Date.now()
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 3_600_000)
+  if (recent.length >= LIMIT_PER_HOUR) return true
+  recent.push(now)
+  hits.set(ip, recent)
+  if (hits.size > 5000) hits.clear()
+  return false
+}
 
 const SYSTEM_PROMPT = `Jesteś doświadczonym asystentem prawnym, który ocenia umowy zawierane w Polsce.
 Twoim zadaniem jest wstępna ocena umowy i propozycje zmian. Zasady:
@@ -191,6 +204,7 @@ createServer(async (req, res) => {
     if (req.url === '/api/status' && req.method === 'GET') return send(res, 200, { ai: !!API_KEY, provider: 'openai', model: API_KEY ? MODEL : null })
     if (req.url === '/api/analyze' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Analiza AI nie jest skonfigurowana.', code: 'not_configured' })
+      if (rateLimited(req)) return send(res, 429, { error: `Wykorzystano limit ${LIMIT_PER_HOUR} analiz na godzinę. Spróbuj później lub użyj analizy podstawowej.`, code: 'rate_limited' })
       const body = await readJson(req)
       const started = Date.now()
       const out = await analyze(body)
