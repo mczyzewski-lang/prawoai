@@ -109,7 +109,7 @@ export interface AnalysisResult {
   summary: string
   contractType: string
   /** details – adres, NIP/KRS/PESEL, reprezentacja (jak w tekście umowy). */
-  parties: { name: string; role: string; details?: string }[]
+  parties: { name: string; role: string; details?: string; kind?: 'osoba' | 'firma'; address?: string; idNumber?: string; representative?: string }[]
   obligations: { party: string; items: string[] }[]
   dates: { label: string; value: string }[]
   payments: { label: string; value: string }[]

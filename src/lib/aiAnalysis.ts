@@ -49,7 +49,7 @@ interface RawResult {
   checks: { title: string; detail: string }[]
   negotiationMessage: string
   contractType: string
-  parties: { name: string; role: string; details: string }[]
+  parties: { name: string; role: string; kind: 'osoba' | 'firma'; address: string; idNumber: string; representative: string }[]
   obligations: { party: string; items: string[] }[]
   dates: { label: string; value: string }[]
   payments: { label: string; value: string }[]
@@ -130,7 +130,7 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
     negotiationMessage: raw.negotiationMessage?.trim() || undefined,
     context: context?.trim() || undefined,
     contractType: raw.contractType,
-    parties: raw.parties.slice(0, 2).map((p) => ({ name: p.name, role: p.role, details: p.details?.trim() || undefined })),
+    parties: raw.parties.slice(0, 2).map((p) => ({ name: p.name, role: p.role, kind: p.kind, address: p.address?.trim() || undefined, idNumber: p.idNumber?.replace(/^\s*(NIP|PESEL|KRS)\s*[:.]?\s*/i, '').trim() || undefined, representative: p.representative?.trim() || undefined, details: p.address?.trim() || undefined })),
     obligations: raw.obligations,
     dates: raw.dates,
     payments: raw.payments,

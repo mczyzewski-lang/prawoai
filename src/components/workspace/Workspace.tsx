@@ -27,7 +27,9 @@ import { acceptCurrentVersion, addComment, addSignature, decideFinding, editDraf
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
 import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs, TextField } from '../ui'
 import { ownDataDiffers, toMyTemplate } from '../../lib/intake'
-import { OwnDataModal } from '../OwnDataModal'
+import { OwnDataModal, PartyFields } from '../OwnDataModal'
+import { partyLine } from '../../lib/contractGenerator'
+import type { SavedParty } from '../../types'
 import { useToast } from '../Toast'
 import { ShareDialog } from '../ShareDialog'
 import { SignModal } from '../SignModal'
@@ -71,6 +73,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [activeFinding, setActiveFinding] = useState<string | null>(null)
   const [signOpen, setSignOpen] = useState(false)
   const [tplOpen, setTplOpen] = useState(false)
+  const [editParty, setEditParty] = useState<PartyId | null>(null)
   const [tplName, setTplName] = useState(c.title)
   const [findingFilter, setFindingFilter] = useState<FindingFilter>('otwarte')
 
@@ -383,6 +386,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   activeFinding={activeFinding}
                   onActivateFinding={(id) => activateFinding(id, 'mark')}
                   onActivateCard={(id) => activateFinding(id, 'card')}
+                  onEditParty={directEdit ? (id) => setEditParty(id) : undefined}
                   marginMode={analysisDesktop}
                 />
               ))}
@@ -434,6 +438,24 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             Zapiszemy aktualną treść umowy (wersja {c.versions.length}) i Twoje dane jako stronę „{me.role}”.
           </p>
         </Modal>
+      )}
+      {editParty && (
+        <PartyEditModal
+          party={c.parties.find((p) => p.id === editParty)!}
+          onClose={() => setEditParty(null)}
+          onSave={(d) => {
+            updateContract(c.id, (x) => {
+              const parties = x.parties.map((p) => (p.id === editParty ? { ...p, ...d } : p)) as Contract['parties']
+              // Projekt z kreatora: zapis o stronach jest generowany z danych – aktualizujemy go.
+              const clauses = partiesClauseIsGenerated(x, x.clauses[0])
+                ? x.clauses.map((cl, i) => (i === 0 ? { ...cl, text: `Umowa zostaje zawarta pomiędzy:\n1) ${partyLine(parties[0])},\n2) ${partyLine(parties[1])},\nzwanymi dalej łącznie „Stronami”.` } : cl))
+                : x.clauses
+              return { ...x, parties, clauses, activity: [...x.activity, { id: `a_${Date.now()}`, at: new Date().toISOString(), text: `${viewerName} zaktualizował(a) dane strony: ${d.name}`, partyId: viewer }] }
+            })
+            setEditParty(null)
+            toast('Zapisano dane strony')
+          }}
+        />
       )}
       {isOwner && (
         <OwnDataModal
@@ -520,6 +542,7 @@ function ClauseBlock({
   onActivateFinding,
   onActivateCard,
   marginMode,
+  onEditParty,
 }: {
   clause: Clause
   index: number
@@ -545,6 +568,8 @@ function ClauseBlock({
   onActivateCard: (id: string) => void
   /** Komentarze na marginesie obok zapisu (desktop). */
   marginMode: boolean
+  /** Edycja danych stron (szkic). */
+  onEditParty?: (id: PartyId) => void
 }) {
   const open = c.proposals.filter((p) => p.clauseId === clause.id && p.status === 'open')
   const comments = c.comments.filter((cm) => cm.clauseId === clause.id)
@@ -587,7 +612,7 @@ function ClauseBlock({
           </button>
           {isParties ? (
             <div className="mt-4">
-              <PartiesColumns parties={c.parties} viewer={viewer} />
+              <PartiesColumns parties={c.parties} viewer={viewer} onEdit={onEditParty} />
               <p className="mt-3 text-center font-serif text-[14px] italic text-slate-500">zwanymi dalej łącznie „Stronami”</p>
               {(!generatedParties || showText || pending.length > 0) ? (
                 <div className="mt-4 rounded-xl bg-white/70 p-4 ring-1 ring-slate-200/70">
@@ -1246,5 +1271,29 @@ function HistoryPanel({ c }: { c: Contract }) {
         </ol>
       </div>
     </div>
+  )
+}
+
+function PartyEditModal({ party, onClose, onSave }: { party: Contract['parties'][number]; onClose: () => void; onSave: (d: SavedParty) => void }) {
+  const [d, setD] = useState<SavedParty>({ kind: party.kind, name: party.name, address: party.address, idNumber: party.idNumber, email: party.email, representative: party.representative })
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Dane strony: ${party.role}`}
+      description="Dane w kolumnach stron. W projekcie z kreatora zaktualizujemy też zapis o stronach."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Anuluj
+          </Button>
+          <Button variant="accent" disabled={!d.name.trim()} onClick={() => onSave({ ...d, name: d.name.trim() })}>
+            Zapisz
+          </Button>
+        </>
+      }
+    >
+      <PartyFields value={d} onChange={setD} />
+    </Modal>
   )
 }

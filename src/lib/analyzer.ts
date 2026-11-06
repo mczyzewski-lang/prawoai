@@ -336,29 +336,89 @@ function toNominative(role: string): string {
     .join(' ')
 }
 
-function detectParties(text: string): { name: string; role: string; details?: string }[] {
-  const head = text.slice(0, 2500)
+export interface DetectedParty {
+  name: string
+  role: string
+  /** Opis z umowy (adres, numery, reprezentacja) – dla zgodności wstecz. */
+  details?: string
+  kind?: 'osoba' | 'firma'
+  address?: string
+  idNumber?: string
+  representative?: string
+}
+
+/** „Janusza Nowickiego” → „Janusz Nowicki”, „Anny Nowak” → „Anna Nowak” (heurystyka). */
+function genitiveToNominative(name: string): string {
+  const w = name.split(/\s+/)
+  if (w.length < 2) return name
+  const last = w[w.length - 1]
+  if (/(sk|ck|dzk)iego$/.test(last)) return [...w.slice(0, -1).map((x) => x.replace(/a$/, '')), last.replace(/iego$/, 'i')].join(' ')
+  if (/(sk|ck|dzk)iej$/.test(last)) return [...w.slice(0, -1).map((x) => x.replace(/y$/, 'a').replace(/i$/, 'ia')), last.replace(/iej$/, 'a')].join(' ')
+  return name
+}
+
+/** „Markiem Czyżewskim” → „Marek Czyżewski", „Anną Nowak” → „Anna Nowak” (heurystyka dla osób). */
+function toNominativeName(name: string): string {
+  const words = name.split(/\s+/)
+  if (!words.some((w) => /(em|im|ą)$/.test(w))) return name
+  return words
+    .map((w) =>
+      w
+        .replace(/(sk|ck|dzk)im$/, '$1i')
+        .replace(/(sk|ck|dzk)ą$/, '$1a')
+        .replace(/kiem$/, 'ek')
+        .replace(/(\p{L}{2,})em$/u, '$1')
+        .replace(/ą$/, 'a'),
+    )
+    .join(' ')
+}
+
+/** Rozbija opis strony z umowy na nazwę, adres, NIP/PESEL i reprezentację. */
+function parsePartySegment(seg: string): Omit<DetectedParty, 'role'> {
+  const clean = seg
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,:;]*(?:pomiędzy|między)?[\s:]*/i, '')
+    .replace(/^(?:a|oraz)\s+/i, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/^(?:Pan(?:em|ią|i)?|Firm(?:ą|a)|Spółk(?:ą|a))\s+/i, '')
+    .trim()
+  const name = clean.split(/,|\s+z\s+siedzibą|\s+zamieszkał|\s+zam\.|\s+NIP|\s+PESEL|\s+KRS|\s+REGON|\s+reprezentowan|\s+legitymując/i)[0].trim()
+  const rest = clean.slice(name.length)
+  const addrMatch =
+    rest.match(/z\s+siedzibą\s+(?:przy\s+|w\s+|pod\s+adresem\s+)?(.+?)(?=,?\s*(?:NIP|KRS|REGON|PESEL|wpisan|reprezentowan|legitymując|zwan)|$)/i) ??
+    rest.match(/(?:zamieszkał\p{L}*|zam\.)\s+(?:przy\s+(?:ulicy\s+)?|w\s+|pod\s+adresem\s+)?(.+?)(?=,?\s*(?:PESEL|NIP|legitymując|zwan)|$)/iu)
+  const nip = rest.match(/NIP[:\s]*([\d\s-]{10,13})/i)?.[1]?.replace(/[\s-]/g, '')
+  const pesel = rest.match(/PESEL[:\s]*(\d{11})/i)?.[1]
+  const krs = rest.match(/KRS[:\s]*(\d{10})/i)?.[1]
+  const rep = rest.match(/reprezentowan\p{L}*\s+przez\s*:?\s*(.+?)(?=,|\s+zwan|\s+-|$)/iu)?.[1]
+  const firm = /(sp\.|spółk|s\.a\.|S\.A|firm|NIP|KRS|REGON)/i.test(seg)
+  const address = addrMatch?.[1]?.replace(/[\s,]+$/, '').replace(/^ul\.\s*ul\./i, 'ul.').trim()
+  const personName = firm ? name : toNominativeName(name)
+  return {
+    name: personName.length >= 3 ? personName.slice(0, 90) : 'Nie wskazano nazwy',
+    kind: firm ? 'firma' : 'osoba',
+    address: address || undefined,
+    idNumber: (firm ? nip ?? krs : pesel ?? nip) || undefined,
+    representative: rep ? genitiveToNominative(rep.trim()) : undefined,
+    details: rest.replace(/^[\s,]+|[\s,]+$/g, '').slice(0, 200) || undefined,
+  }
+}
+
+function detectParties(raw: string): DetectedParty[] {
+  const head = normalizeContractText(raw).slice(0, 3000)
   const re = /zwan[a-ząęółśżźćń]*\s+(?:dalej\s+|w\s+dalszej\s+części\s+umowy\s+)?[„"«]?([A-ZŁŚŻŹĆ][\wąęółśżźćńĄĘÓŁŚŻŹĆŃ]+(?:\s[A-ZŁŚŻŹĆ][\wąęółśżźćń]+)?)[”"»]?/g
-  const out: { name: string; role: string; details?: string }[] = []
+  const out: DetectedParty[] = []
   let prevEnd = Math.max(0, head.search(/pomiędzy|między/i))
   for (const m of head.matchAll(re)) {
     const role = toNominative(m[1].trim())
     if (/^Stron/i.test(role) || out.some((o) => o.role === role)) continue
     const idx = m.index ?? 0
-    const lineStart = head.lastIndexOf('\n', idx) + 1
-    let seg = head.slice(Math.max(prevEnd, lineStart), idx)
-    seg = seg
-      .replace(/^[\s,:;]*(?:pomiędzy|między)?[\s:]*/i, '')
-      .replace(/^(?:a|oraz)\s+/i, '')
-      .replace(/^\d+[.)]\s*/, '')
-    const name = seg
-      .split(/,|\s+z\s+siedzibą|\s+zamieszkał|\s+NIP|\s+PESEL|\s+KRS|\s+reprezentowan/i)[0]
-      .trim()
-    const details = seg
-      .slice(name.length)
-      .replace(/^[\s,]+|[\s,]+$/g, '')
-      .slice(0, 160)
-    out.push({ name: name.length >= 3 ? name.slice(0, 90) : 'Nie wskazano nazwy', role, details: details || undefined })
+    // Opis strony: od poprzedniej strony (lub „pomiędzy”) do „zwanym dalej”, najwyżej kilka linii wstecz.
+    const windowStart = Math.max(prevEnd, idx - 600)
+    let seg = head.slice(windowStart, idx)
+    const lastItem = seg.search(/(?:^|\n)\s*(?:\d+[.)]|[a-z][.)]|a\s*\n)\s*[^\n]*$/)
+    if (lastItem > 0) seg = seg.slice(lastItem)
+    out.push({ role, ...parsePartySegment(seg) })
     prevEnd = idx + m[0].length
     if (out.length === 2) break
   }

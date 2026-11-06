@@ -25,7 +25,7 @@ export default function AnalyzePage() {
   const [reading, setReading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stage, setStage] = useState(-1)
-  const [prep, setPrep] = useState<{ clauses: Clause[]; parties: { name: string; role: string; details?: string }[] } | null>(null)
+  const [prep, setPrep] = useState<{ clauses: Clause[]; parties: AnalysisResult['parties'] } | null>(null)
   const [lastParty, setLastParty] = useState<PartyId | null>(null)
   const [context, setContext] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -138,8 +138,8 @@ export default function AnalyzePage() {
       stage: 'draft',
       ownerPartyId: myParty,
       parties: [
-        { id: 'A', role: p[0]?.role ?? 'Strona pierwsza', kind: 'firma', name: p[0]?.name ?? 'Strona pierwsza', idNumber: '', address: p[0]?.details ?? '', email: '', representative: '' },
-        { id: 'B', role: p[1]?.role ?? 'Strona druga', kind: 'firma', name: p[1]?.name ?? 'Strona druga', idNumber: '', address: p[1]?.details ?? '', email: '', representative: '' },
+        { id: 'A', role: p[0]?.role ?? 'Strona pierwsza', kind: p[0]?.kind ?? 'firma', name: p[0]?.name ?? 'Strona pierwsza', idNumber: p[0]?.idNumber ?? '', address: p[0]?.address ?? p[0]?.details ?? '', email: '', representative: p[0]?.representative ?? '' },
+        { id: 'B', role: p[1]?.role ?? 'Strona druga', kind: p[1]?.kind ?? 'firma', name: p[1]?.name ?? 'Strona druga', idNumber: p[1]?.idNumber ?? '', address: p[1]?.address ?? p[1]?.details ?? '', email: '', representative: p[1]?.representative ?? '' },
       ],
       clauses,
       proposals: [],

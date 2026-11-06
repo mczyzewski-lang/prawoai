@@ -73,7 +73,7 @@ Zasady:
 - Dla uwagi dotyczącej istniejącego zapisu: clauseIndex = numer zapisu z nawiasu kwadratowego; excerpt = DOSŁOWNY cytat (fragment, najlepiej jedno zdanie lub jego część) skopiowany znak w znak z tego zapisu – dokładnie ten fragment, którego dotyczy uwaga; suggestion = nowe brzmienie, które zastąpi dokładnie ten cytat (gotowe do wstawienia).
 - Dla brakującego postanowienia: clauseIndex = -1, insertAfterIndex = numer zapisu, PO którym nowy zapis najlepiej wstawić (zwykle przed postanowieniami końcowymi lub obok zapisu o podobnej tematyce), category = "brak", excerpt = krótki tytuł nowego zapisu, suggestion = pełna treść nowego zapisu. Dla pozostałych uwag insertAfterIndex = -1.
 - category: "ryzyko" | "niejasność" | "brak" | "termin" | "płatność".
-- parties: name = sama nazwa strony (bez adresu); role = określenie użyte w umowie w mianowniku (np. „Klient”, „Agencja”); details = siedziba/adres, NIP/KRS/PESEL i reprezentacja – tylko jeśli są w tekście, inaczej pusty tekst.
+- parties: dokładnie 2 strony w kolejności z umowy. name = sama nazwa strony lub imię i nazwisko, W MIANOWNIKU (np. „Marek Czyżewski”, nie „Panem Markiem Czyżewskim”), bez adresu; role = określenie z umowy w mianowniku (np. „Zleceniodawca”); kind = osoba lub firma; address = pełny adres w mianowniku (np. „ul. Lubowska 29A, 60-433 Poznań”); idNumber = sam numer NIP (dla firm) lub PESEL (dla osób), bez przedrostka; representative = osoba reprezentująca w mianowniku. Puste pola zostaw jako pusty tekst.
 - obligations: najważniejsze obowiązki każdej ze stron (krótkie punkty). dates i payments: terminy i kwoty wynikające z umowy.
 - summary: 2–4 zdania: czego dotyczy umowa (strony, przedmiot, kwota) i ogólna ocena z perspektywy użytkownika.
 - verdict: jedno–dwa zdania szczerej oceny, np. „Umowa jest poprawna, ale za słabo zabezpiecza Cię jako inwestora – największe problemy to przedpłata, gwarancja i odbiór”.
@@ -94,7 +94,7 @@ const SCHEMA = {
     checks: { type: 'array', items: { type: 'object', properties: { title: str, detail: str }, required: ['title', 'detail'], additionalProperties: false } },
     negotiationMessage: str,
     contractType: str,
-    parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str, details: str }, required: ['name', 'role', 'details'], additionalProperties: false } },
+    parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str, kind: { type: 'string', enum: ['osoba', 'firma'] }, address: str, idNumber: str, representative: str }, required: ['name', 'role', 'kind', 'address', 'idNumber', 'representative'], additionalProperties: false } },
     obligations: { type: 'array', items: { type: 'object', properties: { party: str, items: { type: 'array', items: str } }, required: ['party', 'items'], additionalProperties: false } },
     dates: { type: 'array', items: labelValue },
     payments: { type: 'array', items: labelValue },

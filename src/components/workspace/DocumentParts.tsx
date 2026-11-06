@@ -1,4 +1,4 @@
-import { Building2, Check, PenLine, User } from 'lucide-react'
+import { Building2, Check, PenLine, Pencil, User } from 'lucide-react'
 import type { Contract, Party, PartyId } from '../../types'
 import { cx, formatDate, formatDateTime } from '../../lib/utils'
 import { documentKind, partyRows, splitClauseLines, stageLabel } from '../../lib/documentFormat'
@@ -44,7 +44,7 @@ export function DocumentHeader({ c }: { c: Contract }) {
   )
 }
 
-function PartyCard({ p, index, isViewer }: { p: Party; index: number; isViewer: boolean }) {
+function PartyCard({ p, index, isViewer, onEdit }: { p: Party; index: number; isViewer: boolean; onEdit?: () => void }) {
   const rows = partyRows(p)
   const Icon = p.kind === 'firma' ? Building2 : User
   return (
@@ -53,7 +53,14 @@ function PartyCard({ p, index, isViewer }: { p: Party; index: number; isViewer: 
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-700">
           Strona {index + 1} · {p.role}
         </p>
-        {isViewer && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-800">Ty</span>}
+        <span className="flex items-center gap-1.5">
+          {isViewer && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-800">Ty</span>}
+          {onEdit && (
+            <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-brand-700 hover:bg-brand-50" aria-label={`Edytuj dane: ${p.role}`}>
+              <Pencil className="size-3" aria-hidden /> Edytuj
+            </button>
+          )}
+        </span>
       </div>
       <div className="mt-2 flex items-start gap-2.5">
         <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-sand-100 text-ink-700" aria-hidden>
@@ -76,12 +83,12 @@ function PartyCard({ p, index, isViewer }: { p: Party; index: number; isViewer: 
   )
 }
 
-export function PartiesColumns({ parties, viewer }: { parties: Party[]; viewer?: PartyId }) {
+export function PartiesColumns({ parties, viewer, onEdit }: { parties: Party[]; viewer?: PartyId; onEdit?: (id: PartyId) => void }) {
   return (
     <div className="relative">
       <div className="grid gap-px overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2">
         {parties.map((p, i) => (
-          <PartyCard key={p.id} p={p} index={i} isViewer={p.id === viewer} />
+          <PartyCard key={p.id} p={p} index={i} isViewer={p.id === viewer} onEdit={onEdit ? () => onEdit(p.id) : undefined} />
         ))}
       </div>
       <span className="absolute left-1/2 top-1/2 hidden size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-paper font-serif text-sm italic text-brand-700 shadow-sm ring-1 ring-slate-200 sm:grid" aria-hidden>
