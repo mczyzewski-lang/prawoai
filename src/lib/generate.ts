@@ -32,6 +32,10 @@ export interface GenerateInput {
   myTemplate?: MyTemplate
   /** Wzór wskazany na stronie wzoru – podpowiedź dla modelu. */
   templateHint?: string
+  /** Tekst do pokazania w czacie (z @wzmiankami, bez rozwiniętych danych). */
+  displayPrompt?: string
+  /** Etykiety użytych @wzmianek (do podświetlenia w dymku). */
+  mentionLabels?: string[]
   /** Osoby wskazane przez „@” – dane z konta (pierwsza inna niż Ty = druga strona). */
   mentioned?: SavedParty[]
 }
@@ -66,7 +70,7 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
     let c = buildContractFromMyTemplate(mt, state, input.authorName)
     c = await retargetMyTemplateContract(c, mt, false)
     const msgs: ChatMessage[] = [
-      { id: uid('m'), role: 'user', text: prompt, createdAt: nowIso() },
+      { id: uid('m'), role: 'user', text: input.displayPrompt ?? prompt, createdAt: nowIso(), mentions: input.mentionLabels },
       {
         id: uid('m'),
         role: 'assistant',
@@ -96,7 +100,7 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
     let c = buildContractFromIntake(state, input.authorName)
     const missing = [!c.parties[0].name && `dane strony „${t.roles[0]}”`, !c.parties[1].name && `dane strony „${t.roles[1]}”`, `przedmiot umowy (§ 2)`, !amount && t.fields.includes('amount') && 'kwotę'].filter(Boolean)
     const msgs: ChatMessage[] = [
-      { id: uid('m'), role: 'user', text: prompt, createdAt: nowIso() },
+      { id: uid('m'), role: 'user', text: input.displayPrompt ?? prompt, createdAt: nowIso(), mentions: input.mentionLabels },
       {
         id: uid('m'),
         role: 'assistant',
@@ -137,7 +141,7 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
   c = { ...c, ownDataConfirmed: !(ownDataInLastMessage && ownDataDiffers(ownPartyOf(state), input.ownParty)) }
 
   onStage('tailoring')
-  const messages: ChatMessage[] = [userMsg]
+  const messages: ChatMessage[] = [{ ...userMsg, text: input.displayPrompt ?? prompt, mentions: input.mentionLabels }]
   try {
     const tailorMsg: ChatMessage = {
       ...userMsg,

@@ -3,7 +3,7 @@ import { ArrowUp, AtSign, Bot, EyeOff, FilePen, Lock, PencilLine, Undo2 } from '
 import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
 import { PRIVATE_PROMPTS, privateAnswer } from '../../lib/privateAssistant'
 import { looksLikePartyData, parseFreeParty } from '../../lib/partyText'
-import { askContractAssistant, AssistantError, type AssistantResult, type Mention } from '../../lib/contractAssistant'
+import { mentionSubtitle, askContractAssistant, AssistantError, type AssistantResult, type Mention } from '../../lib/contractAssistant'
 import { getAiStatus } from '../../lib/aiAnalysis'
 import { cx, nowIso, sleep, uid } from '../../lib/utils'
 import { Button } from '../ui'
@@ -60,7 +60,7 @@ function mentionFillResult(c: Contract, viewer: PartyId, text: string, used: Men
   const wantsOther = /drug(a|iej|ą) stron|kontrahent|klient/.test(t) || t.includes(other.role.toLowerCase().slice(0, 6))
   const wantsMe = /\b(moj|moje|mnie|ja)\b/.test(t) || t.includes(me.role.toLowerCase().slice(0, 6))
   const order: (typeof me)[] = wantsOther && !wantsMe ? [other, me] : wantsMe ? [me, other] : !me.name ? [me, other] : !other.name ? [other, me] : [me, other]
-  const updates = used.slice(0, 2).map((m, i) => ({ partyId: order[i].id, ...m.data, kind: m.data.kind }))
+  const updates = used.filter((m) => m.data).slice(0, 2).map((m, i) => ({ partyId: order[i].id, ...m.data!, kind: m.data!.kind }))
   const names = updates.map((u, i) => `„${order[i].role}” – ${u.name}`).join('; ')
   return {
     reply: `Uzupełniłem dane strony ${names} (zob. § 1). Jeśli trafiły do niewłaściwej strony, kliknij „Cofnij” i napisz np. „@… to dane drugiej strony” albo popraw je przyciskiem „Edytuj” przy kolumnach.`,
@@ -319,7 +319,7 @@ export function PrivateAssistant({
                     <AtSign className="mt-0.5 size-3.5 shrink-0 text-brand-600" aria-hidden />
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink-900">{c.label}</span>
-                      <span className="block truncate text-xs text-slate-500">{[c.data.address, c.data.idNumber].filter(Boolean).join(' · ') || (c.data.kind === 'firma' ? 'firma' : 'osoba')}</span>
+                      <span className="block truncate text-xs text-slate-500">{mentionSubtitle(c)}</span>
                     </span>
                   </button>
                 </li>

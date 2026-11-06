@@ -486,7 +486,7 @@ async function contractChat(body) {
   if (!messages.length) throw Object.assign(new Error('Brak wiadomości.'), { status: 400, code: 'empty' })
   const doc = clauses.map((x, i) => `[${i}] § ${i + 1}. ${clip(x.title, 200)}\n${clip(x.text, 6000)}`).join('\n\n')
   if (doc.length > MAX_CHARS) throw Object.assign(new Error('Umowa jest za długa.'), { status: 413, code: 'too_long' })
-  const mentions = Array.isArray(body?.mentions) && body.mentions.length ? `\n\nDane osób wskazanych przez @wzmianki:\n${clip(JSON.stringify(body.mentions), 3000)}` : ''
+  const mentions = Array.isArray(body?.mentions) && body.mentions.length ? `\n\nDane wskazane przez @wzmianki (osoby i firmy – jako strony umowy; sprzęt, produkty i inne – wpisz je w odpowiednie zapisy, np. przedmiot umowy, z pełną nazwą, modelem i parametrami):\n${clip(JSON.stringify(body.mentions), 3000)}` : ''
   const payload = {
     model: INTAKE_MODEL,
     input: [

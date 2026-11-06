@@ -52,7 +52,7 @@ const msg = (role: ChatMessage['role'], text: string, extra: Partial<ChatMessage
 
 export default function NewContractPage() {
   const { state: app, updateProfile, upsertContract } = useStore()
-  const contacts = useMemo(() => collectContacts(app.profile.ownParty, app.contracts), [app.profile.ownParty, app.contracts])
+  const contacts = useMemo(() => collectContacts(app.profile.ownParty, app.contracts, app.dataBook), [app.profile.ownParty, app.contracts, app.dataBook])
   const persona = personaFor(app.profile)
   const toast = useToast()
   const navigate = useNavigate()

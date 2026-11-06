@@ -6,6 +6,7 @@ import WizardPage from './pages/WizardPage'
 import TemplateDetailPage from './pages/TemplateDetailPage'
 import TemplatePreviewPage from './pages/TemplatePreviewPage'
 import ContractsPage from './pages/ContractsPage'
+import DataBookPage from './pages/DataBookPage'
 import AnalyzePage from './pages/AnalyzePage'
 import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
 import { OwnerSignPage, SharedSignPage } from './pages/SignPage'
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="wzory/:templateId/podglad" element={<TemplatePreviewPage />} />
         <Route path="analiza" element={<AnalyzePage />} />
         <Route path="umowy" element={<ContractsPage />} />
+        <Route path="dane" element={<DataBookPage />} />
         <Route path="umowy/:id" element={<OwnerContractPage />} />
         <Route path="umowy/:id/podpis" element={<OwnerSignPage />} />
         <Route path="asystent" element={<AssistantPage />} />

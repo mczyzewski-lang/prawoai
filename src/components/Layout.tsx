@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
+import { BookUser, FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
 import { ProfileModal } from './ProfileModal'
 import { Wordmark } from './BrandSymbol'
 import { useStore } from '../store/AppStore'
@@ -67,6 +67,13 @@ function ProfileMenu() {
               <span className="block truncate text-xs text-slate-500">{state.profile.ownParty ? `Dane do umów: ${state.profile.ownParty.name}` : 'Brak zapisanych danych do umów'}</span>
             </span>
           </button>
+          <Link role="menuitem" to="/dane" onClick={() => setOpen(false)} className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            <BookUser className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              Adresy i dane
+              <span className="block text-xs text-slate-500">Osoby, sprzęt i inne dane do wstawiania przez @</span>
+            </span>
+          </Link>
           <div className="my-1 h-px bg-slate-100" />
           <Link role="menuitem" to="/umowy" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
             <FolderOpen className="size-4" aria-hidden /> Moje umowy

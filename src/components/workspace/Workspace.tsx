@@ -299,7 +299,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             toast('Cofnięto zmiany asystenta')
           }}
           onOpenClause={(id) => selectClause(id)}
-          contacts={isOwner ? collectContacts(appState.profile.ownParty, appState.contracts) : []}
+          contacts={isOwner ? collectContacts(appState.profile.ownParty, appState.contracts, appState.dataBook) : []}
           pendingReveal={fresh && !revealed}
           persona={isOwner ? personaFor(appState.profile) : undefined}
         />

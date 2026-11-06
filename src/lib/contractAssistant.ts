@@ -1,4 +1,5 @@
-import type { ChatMessage, Clause, Contract, GrammarForm, Party, PartyId, SavedParty } from '../types'
+import type { ChatMessage, Clause, Contract, DataCollection, GrammarForm, Party, PartyId, SavedParty } from '../types'
+import { rowDetails, rowToParty } from './dataBook'
 import { partyLine } from './contractGenerator'
 import { snapshot, submitProposal } from './contractOps'
 import { partiesClauseIsGenerated } from './documentFormat'
@@ -27,7 +28,10 @@ export interface AssistantResult {
 
 export interface Mention {
   label: string
-  data: SavedParty
+  /** Osoba lub firma (strona umowy). */
+  data?: SavedParty
+  /** Inne dane z „Adresy i dane” (np. sprzęt): nazwa kolekcji i wartości kolumn. */
+  info?: { collection: string; values: { label: string; value: string }[] }
 }
 
 export class AssistantError extends Error {}
@@ -49,7 +53,7 @@ export async function askContractAssistant(
         stage: c.stage === 'draft' ? 'draft' : 'shared',
         messages: messages.map((m) => ({ role: m.role, text: m.text })),
         persona: opts.persona,
-        mentions: opts.mentions?.map((m) => ({ label: m.label, ...m.data })),
+        mentions: opts.mentions?.map((m) => (m.data ? { label: m.label, ...m.data } : { label: m.label, kolekcja: m.info?.collection, dane: Object.fromEntries((m.info?.values ?? []).map((v) => [v.label, v.value])) })),
       }),
     })
   } catch {
@@ -155,7 +159,7 @@ export function applyAssistantResult(c: Contract, res: AssistantResult, viewer: 
 }
 
 /** Kontakty do @wzmianek: zapisane dane użytkownika i strony z jego umów. */
-export function collectContacts(profileOwn: SavedParty | undefined, contracts: Contract[]): Mention[] {
+export function collectContacts(profileOwn: SavedParty | undefined, contracts: Contract[], dataBook: DataCollection[] = []): Mention[] {
   const out: Mention[] = []
   const seen = new Set<string>()
   const add = (data: SavedParty) => {
@@ -165,6 +169,20 @@ export function collectContacts(profileOwn: SavedParty | undefined, contracts: C
     out.push({ label: data.name.trim(), data })
   }
   if (profileOwn) add(profileOwn)
+  // Baza „Adresy i dane”: osoby jako strony umowy, pozostałe kolekcje jako dane do wpisania.
+  for (const col of dataBook) {
+    for (const r of col.rows) {
+      const label = r.label.trim()
+      if (!label || seen.has(label.toLowerCase())) continue
+      if (col.kind === 'osoby') {
+        seen.add(label.toLowerCase())
+        out.push({ label, data: rowToParty(r) })
+      } else {
+        seen.add(label.toLowerCase())
+        out.push({ label, info: { collection: col.name, values: rowDetails(col, r) } })
+      }
+    }
+  }
   for (const c of contracts) for (const p of c.parties) add({ kind: p.kind, name: p.name, address: p.address, idNumber: p.idNumber, email: p.email, representative: p.representative })
   return out
 }
@@ -174,6 +192,12 @@ export function expandMentions(text: string, contacts: Mention[]): string {
   const sorted = [...contacts].sort((a, b) => b.label.length - a.label.length)
   let out = text
   for (const c of sorted) {
+    if (!c.data) {
+      const vals = c.info?.values ?? []
+      const full = vals.length ? `${c.label} (${vals.map((v) => `${v.label}: ${v.value}`).join('; ')})` : c.label
+      out = out.split(`@${c.label}`).join(full)
+      continue
+    }
     const d = c.data
     const details = [
       d.address && `adres: ${d.address}`,
@@ -185,4 +209,10 @@ export function expandMentions(text: string, contacts: Mention[]): string {
     out = out.split(`@${c.label}`).join(full)
   }
   return out
+}
+
+/** Podpis w liście podpowiedzi „@”. */
+export function mentionSubtitle(m: Mention): string {
+  if (m.data) return [m.data.address, m.data.idNumber].filter(Boolean).join(' · ') || (m.data.kind === 'firma' ? 'firma' : 'osoba')
+  return [m.info?.collection, ...(m.info?.values ?? []).slice(0, 2).map((v) => v.value)].filter(Boolean).join(' · ')
 }

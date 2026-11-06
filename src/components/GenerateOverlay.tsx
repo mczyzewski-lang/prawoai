@@ -23,7 +23,7 @@ export function useGenerate() {
   const toast = useToast()
   const [stage, setStage] = useState<GenerateStage | null>(null)
   /** Osoby z konta do wskazania przez „@”. */
-  const contacts = useMemo(() => collectContacts(state.profile.ownParty, state.contracts), [state.profile.ownParty, state.contracts])
+  const contacts = useMemo(() => collectContacts(state.profile.ownParty, state.contracts, state.dataBook), [state.profile.ownParty, state.contracts, state.dataBook])
 
   const generate = async (prompt: string, opts: { templateHint?: string; myTemplateId?: string | null } = {}) => {
     if (stage) return
@@ -33,7 +33,9 @@ export function useGenerate() {
       const out = await generateFromPrompt(
         {
           prompt: expandMentions(prompt, contacts),
-          mentioned: contacts.filter((c) => prompt.includes(`@${c.label}`)).map((c) => c.data),
+          displayPrompt: prompt,
+          mentionLabels: contacts.filter((c) => prompt.includes(`@${c.label}`)).map((c) => c.label),
+          mentioned: contacts.filter((c) => prompt.includes(`@${c.label}`)).flatMap((c) => (c.data ? [c.data] : [])),
           ai,
           authorName: state.profile.name,
           ownParty: state.profile.ownParty,

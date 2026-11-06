@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Contract, Conversation, GuestAccount, MyTemplate, Profile } from '../types'
+import type { Contract, Conversation, DataCollection, GuestAccount, MyTemplate, Profile } from '../types'
+import { defaultDataBook } from '../lib/dataBook'
 import { DEFAULT_PROFILE, seedContracts, seedConversations } from './seed'
 
 const STORAGE_KEY = 'prawoai:v1'
@@ -14,10 +15,12 @@ export interface AppState {
   guestAccounts: Record<string, GuestAccount>
   /** Własne wzory użytkownika. */
   myTemplates: MyTemplate[]
+  /** „Adresy i dane” – osoby, sprzęt i inne dane wstawiane do umów przez „@”. */
+  dataBook: DataCollection[]
 }
 
 function freshState(): AppState {
-  return { schema: SCHEMA_VERSION, profile: DEFAULT_PROFILE, contracts: seedContracts(), conversations: seedConversations(), guestAccounts: {}, myTemplates: [] }
+  return { schema: SCHEMA_VERSION, profile: DEFAULT_PROFILE, contracts: seedContracts(), conversations: seedConversations(), guestAccounts: {}, myTemplates: [], dataBook: defaultDataBook() }
 }
 
 type LoadResult = { state: AppState; error: string | null }
@@ -53,6 +56,7 @@ interface Store {
   updateProfile: (p: Profile) => void
   upsertMyTemplate: (t: MyTemplate) => void
   deleteMyTemplate: (id: string) => void
+  setDataBook: (fn: (d: DataCollection[]) => DataCollection[]) => void
   resetDemo: () => void
 }
 
@@ -127,6 +131,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         }),
       updateProfile: (profile) => setState((s) => ({ ...s, profile })),
       upsertMyTemplate: (t) => setState((s) => ({ ...s, myTemplates: [t, ...(s.myTemplates ?? []).filter((x) => x.id !== t.id)] })),
+      setDataBook: (fn) => setState((s) => ({ ...s, dataBook: fn(s.dataBook ?? defaultDataBook()) })),
       deleteMyTemplate: (id) => setState((s) => ({ ...s, myTemplates: (s.myTemplates ?? []).filter((x) => x.id !== id) })),
       resetDemo: () => {
         setState(freshState())

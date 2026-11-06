@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { AtSign } from 'lucide-react'
-import type { Mention } from '../lib/contractAssistant'
+import { mentionSubtitle, type Mention } from '../lib/contractAssistant'
 import { cx } from '../lib/utils'
 
 /** Tekst z wyróżnionymi @wzmiankami – warstwa pod przezroczystym polem tekstowym. */
@@ -93,7 +93,7 @@ export const MentionTextarea = forwardRef<
                 <AtSign className="mt-0.5 size-3.5 shrink-0 text-brand-600" aria-hidden />
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-ink-900">{c.label}</span>
-                  <span className="block truncate text-xs text-slate-500">{[c.data.address, c.data.idNumber].filter(Boolean).join(' · ') || (c.data.kind === 'firma' ? 'firma' : 'osoba')}</span>
+                  <span className="block truncate text-xs text-slate-500">{mentionSubtitle(c)}</span>
                 </span>
               </button>
             </li>

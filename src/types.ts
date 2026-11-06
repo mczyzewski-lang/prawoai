@@ -242,3 +242,28 @@ export interface GuestAccount {
   email: string
   createdAt: string
 }
+
+/** Kolumna kolekcji w „Adresy i dane”. */
+export interface DataColumn {
+  id: string
+  label: string
+}
+
+/** Wiersz kolekcji – `label` to nazwa używana po „@” (np. „Pompa 12kW”, „Mój adres”). */
+export interface DataRow {
+  id: string
+  label: string
+  values: Record<string, string>
+}
+
+/**
+ * Kolekcja danych wielokrotnego użytku w umowach.
+ * `osoby` ma stałe kolumny strony umowy (rodzaj, nazwa, adres, NIP/PESEL…); `inne` – kolumny użytkownika.
+ */
+export interface DataCollection {
+  id: string
+  name: string
+  kind: 'osoby' | 'inne'
+  columns: DataColumn[]
+  rows: DataRow[]
+}
