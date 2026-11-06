@@ -57,7 +57,7 @@ Jeśli serwer działa za proxy HTTP (np. w środowisku firmowym), uruchom go z `
 
 ## Wdrożenie na Railway
 
-Repozytorium zawiera `railway.json` (build: `npm ci && npm run build`, start: `node server/index.mjs`, healthcheck `/api/status`). Serwer sam serwuje aplikację i API na porcie z `PORT`.
+Repozytorium zawiera `railway.json` (start: `node server/index.mjs`, healthcheck `/api/status`). Build wykonuje domyślny builder Railway (Railpack): `npm ci` i `npm run build` – nie dodawaj własnego `buildCommand` z `npm ci`, bo podwójna instalacja kończy się błędem `EBUSY … node_modules/.cache`. Serwer sam serwuje aplikację i API na porcie z `PORT`.
 
 1. railway.com → **New Project** → **Deploy from GitHub repo** → wybierz `prawoai` i gałąź z aplikacją.
 2. W usłudze → **Variables** dodaj `OPENAI_API_KEY` (opcjonalnie `OPENAI_MODEL`, `ANALYZE_LIMIT_PER_HOUR`). **Nie** ustawiaj `API_PORT`.
