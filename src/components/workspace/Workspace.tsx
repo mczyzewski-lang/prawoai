@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
+  ArrowDown,
   ArrowLeft,
   BookmarkPlus,
   FileText,
@@ -124,6 +125,18 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const numbered = useMemo(() => (hasAnalysis ? numberFindings(c) : []), [c, hasAnalysis])
   const visibleFindings = numbered.filter((x) => matchesFilter(x.f, findingFilter))
   const analysisDesktop = hasAnalysis && desktopPanel === 'analiza'
+  /** Zapis, przy którym na marginesie wyświetla się dany komentarz. */
+  const findingClauseId = (x: NumberedFinding) =>
+    x.f.clauseId || (c.clauses.some((k) => k.id === x.f.insertAfterClauseId) ? x.f.insertAfterClauseId : c.clauses[c.clauses.length - 1]?.id)
+  /** Najbliższy kolejny zapis z komentarzem – podpowiedź na pustym marginesie. */
+  const nextCommented = (from: number) => {
+    for (let j = from + 1; j < c.clauses.length; j++) {
+      const id = c.clauses[j].id
+      const n = visibleFindings.filter((x) => findingClauseId(x) === id).length
+      if (n) return { index: j, id, count: n }
+    }
+    return null
+  }
   const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches
 
   const decideFinding_ = (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => {
@@ -463,8 +476,9 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   onCounter={counter}
                   onFinding={decideFinding_}
                   canAct={!isSigned}
-                  marks={visibleFindings.filter((x) => x.f.clauseId === cl.id)}
-                  inserts={visibleFindings.filter((x) => !x.f.clauseId && (c.clauses.some((k) => k.id === x.f.insertAfterClauseId) ? x.f.insertAfterClauseId : c.clauses[c.clauses.length - 1]?.id) === cl.id)}
+                  marks={visibleFindings.filter((x) => findingClauseId(x) === cl.id && !!x.f.clauseId)}
+                  inserts={visibleFindings.filter((x) => !x.f.clauseId && findingClauseId(x) === cl.id)}
+                  nextCommented={analysisDesktop ? nextCommented(i) : null}
                   activeFinding={activeFinding}
                   onActivateFinding={(id) => activateFinding(id, 'mark')}
                   onActivateCard={(id) => activateFinding(id, 'card')}
@@ -624,6 +638,7 @@ function ClauseBlock({
   onActivateFinding,
   onActivateCard,
   marginMode,
+  nextCommented,
   onEditParty,
 }: {
   clause: Clause
@@ -650,6 +665,8 @@ function ClauseBlock({
   onActivateCard: (id: string) => void
   /** Komentarze na marginesie obok zapisu (desktop). */
   marginMode: boolean
+  /** Na pustym marginesie: najbliższy dalszy zapis z komentarzami. */
+  nextCommented?: { index: number; id: string; count: number } | null
   /** Edycja danych stron (szkic). */
   onEditParty?: (id: PartyId) => void
 }) {
@@ -781,6 +798,20 @@ function ClauseBlock({
 
         {marginMode && (
           <div className="hidden space-y-2 lg:block" aria-label={`Komentarze do zapisu: ${clause.title}`}>
+            {marks.length + inserts.length === 0 && nextCommented && (
+              <button
+                type="button"
+                onClick={() => document.getElementById(`c-${nextCommented.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="group flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-left text-xs text-slate-500 transition hover:border-brand-300 hover:bg-white hover:text-brand-800"
+              >
+                <MessageSquareText className="size-3.5 shrink-0 text-slate-400 group-hover:text-brand-600" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  Brak uwag do § {index + 1}. Następne: <span className="font-semibold">§ {nextCommented.index + 1}</span>
+                  {nextCommented.count > 1 ? ` (${nextCommented.count})` : ''}
+                </span>
+                <ArrowDown className="size-3.5 shrink-0" aria-hidden />
+              </button>
+            )}
             {[...marks, ...inserts].map((m) => (
               <FindingCard
                 key={m.f.id}
