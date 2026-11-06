@@ -1,3 +1,4 @@
+import { AddressFields } from '../components/OwnDataModal'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronDown, FileWarning, Lightbulb, RotateCcw, Save, Send, User } from 'lucide-react'
@@ -274,7 +275,7 @@ function Wizard({ t }: { t: TemplateDefinition }) {
                   error={errors[`${p.id}.name`]}
                   autoComplete={p.id === draft.myRole ? (p.kind === 'firma' ? 'organization' : 'name') : 'off'}
                 />
-                <TextField label="Adres" value={p.address} onChange={(e) => setParty(p.id, { address: e.target.value })} optional />
+                <AddressFields value={p.address} onChange={(address) => setParty(p.id, { address })} firm={p.kind === 'firma'} />
                 <TextField label={p.kind === 'firma' ? 'NIP lub KRS' : 'PESEL'} value={p.idNumber} onChange={(e) => setParty(p.id, { idNumber: e.target.value })} optional inputMode="numeric" hint={p.id !== draft.myRole ? 'Jeśli nie znasz – kontrahent uzupełni.' : undefined} />
                 <TextField label="E-mail" type="email" value={p.email} onChange={(e) => setParty(p.id, { email: e.target.value })} optional error={errors[`${p.id}.email`]} inputMode="email" />
                 {p.kind === 'firma' && <TextField label="Osoba reprezentująca" value={p.representative} onChange={(e) => setParty(p.id, { representative: e.target.value })} optional />}

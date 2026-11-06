@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertOctagon, AlertTriangle, Check, CircleHelp, FilePlus2, Info, Lock, Pencil, RotateCcw, Undo2, X } from 'lucide-react'
+import { AlertOctagon, AlertTriangle, Check, ChevronUp, CircleHelp, FilePlus2, Info, Lock, Pencil, RotateCcw, Undo2, X } from 'lucide-react'
 import type { Clause, Finding, FindingAspect, FindingPriority, PartyId, Proposal } from '../../types'
 import { cx, formatRelative } from '../../lib/utils'
 import { Avatar, Badge, Button } from '../ui'
@@ -73,9 +73,19 @@ export function FindingCard({
   return (
     <article
       id={`fc-${f.id}`}
-      className={cx('relative scroll-mt-28 overflow-hidden rounded-2xl bg-white ring-1 transition', active ? 'shadow-lg ring-2 ring-ink-800' : 'ring-slate-200', done && !active && 'opacity-75', collapsible && !active && 'cursor-pointer hover:ring-slate-300')}
+      className={cx('relative scroll-mt-28 overflow-hidden rounded-2xl bg-white ring-1 transition', active ? 'shadow-lg ring-2 ring-ink-800' : 'ring-slate-200', done && !active && 'opacity-75', collapsible && 'cursor-pointer', collapsible && !active && 'hover:ring-slate-300')}
       aria-label={`Komentarz ${number ?? ''}: ${f.title}`}
-      onClick={collapsible && !active ? onActivate : undefined}
+      onClick={
+        collapsible
+          ? (e) => {
+              // Klik w dowolne miejsce karty rozwija/zwija – poza przyciskami, polami i zaznaczonym tekstem.
+              if ((e.target as HTMLElement).closest('button, a, textarea, input, select, label')) return
+              if (window.getSelection()?.toString()) return
+              if (editing) return
+              onActivate?.()
+            }
+          : undefined
+      }
     >
       <span className={cx('absolute inset-y-0 left-0 w-1', pr.bar)} aria-hidden />
       <div className="p-3.5 pl-4">
@@ -86,9 +96,20 @@ export function FindingCard({
           <span className="ml-auto">
             <ImportanceMeter value={importanceOf(f)} />
           </span>
+          {collapsible && active && !editing && (
+            <button
+              type="button"
+              onClick={onActivate}
+              className="-mr-1 grid size-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink-900"
+              aria-label="Zwiń komentarz"
+              title="Zwiń"
+            >
+              <ChevronUp className="size-4" aria-hidden />
+            </button>
+          )}
         </div>
         {collapsible && !active ? (
-          <button type="button" onClick={onActivate} className="mt-1.5 block w-full text-left">
+          <button type="button" onClick={onActivate} aria-expanded={false} className="mt-1.5 block w-full text-left">
             <span className="block text-sm font-semibold leading-snug text-ink-900">{f.title}</span>
             <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-slate-600">{f.impact ?? f.explanation}</span>
             {done && <span className="mt-1 block text-[11px] font-medium text-slate-500">{f.status === 'rejected' ? 'Odrzucono' : 'Wprowadzono'}</span>}

@@ -3,6 +3,7 @@ import { BookmarkCheck, Building2, User } from 'lucide-react'
 import type { PartyKind, SavedParty } from '../types'
 import { Button, Modal, TextField } from './ui'
 import { cx } from '../lib/utils'
+import { joinAddress, splitAddress } from '../lib/documentFormat'
 
 /** Przełącznik (switch) dostępny z klawiatury. */
 export function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
@@ -18,6 +19,41 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
         <span className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
       </span>
     </label>
+  )
+}
+
+/** Adres w trzech polach: ulica i numer, kod pocztowy, miejscowość (zapisywany jako jeden tekst). */
+export function AddressFields({ value, onChange, firm }: { value: string; onChange: (v: string) => void; firm?: boolean }) {
+  const [parts, setParts] = useState(() => splitAddress(value ?? ''))
+  // Zmiana z zewnątrz (np. wypełnienie przez asystenta) – rozbij ponownie.
+  useEffect(() => {
+    if ((value ?? '') !== joinAddress(parts)) setParts(splitAddress(value ?? ''))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  const set = (patch: Partial<typeof parts>) => {
+    const next = { ...parts, ...patch }
+    setParts(next)
+    onChange(joinAddress(next))
+  }
+  return (
+    <fieldset className="space-y-3">
+      <legend className="sr-only">{firm ? 'Siedziba / adres' : 'Adres'}</legend>
+      <TextField label={firm ? 'Ulica i numer (siedziba)' : 'Ulica i numer'} value={parts.street} onChange={(e) => set({ street: e.target.value })} optional placeholder="np. ul. Snopowa 9/2" autoComplete="street-address" />
+      <div className="grid grid-cols-[8rem_1fr] gap-3">
+        <TextField
+          label="Kod pocztowy"
+          value={parts.postal}
+          onChange={(e) => {
+            const d = e.target.value.replace(/[^\d]/g, '').slice(0, 5)
+            set({ postal: d.length > 2 ? `${d.slice(0, 2)}-${d.slice(2)}` : d })
+          }}
+          inputMode="numeric"
+          placeholder="00-000"
+          autoComplete="postal-code"
+        />
+        <TextField label="Miejscowość" value={parts.city} onChange={(e) => set({ city: e.target.value })} placeholder="np. Poznań" autoComplete="address-level2" />
+      </div>
+    </fieldset>
   )
 }
 
@@ -41,7 +77,7 @@ export function PartyFields({ value, onChange }: { value: SavedParty; onChange: 
         ))}
       </div>
       <TextField label={value.kind === 'firma' ? 'Nazwa firmy' : 'Imię i nazwisko'} value={value.name} onChange={(e) => set({ name: e.target.value })} />
-      <TextField label="Adres" value={value.address} onChange={(e) => set({ address: e.target.value })} optional />
+      <AddressFields value={value.address} onChange={(address) => set({ address })} firm={value.kind === 'firma'} />
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField label={value.kind === 'firma' ? 'NIP / KRS' : 'PESEL'} value={value.idNumber} onChange={(e) => set({ idNumber: e.target.value })} optional inputMode="numeric" />
         <TextField label="E-mail" type="email" value={value.email} onChange={(e) => set({ email: e.target.value })} optional />

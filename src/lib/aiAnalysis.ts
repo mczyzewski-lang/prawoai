@@ -101,19 +101,62 @@ export function defaultInsertAfter(clauses: Clause[]): string | undefined {
   return (finalIdx > 0 ? clauses[finalIdx - 1] : clauses[clauses.length - 1])?.id
 }
 
-export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective, context?: string, persona?: { addressAs: string; form: string }): Promise<AnalysisResult> {
-  let r: Response
+export interface AnalysisProgress {
+  phase: 'reading' | 'writing' | 'verdict' | 'findings' | 'finishing'
+  verdict?: string
+  findings: { priority: string; title: string }[]
+}
+
+/** Odczyt strumienia SSE z /api/analyze; zwraca ostateczny wynik. */
+async function readAnalysisStream(r: Response, onProgress: (p: AnalysisProgress) => void): Promise<{ result?: unknown; error?: string; code?: string; model?: string }> {
+  const reader = r.body!.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    let sep
+    while ((sep = buf.indexOf('\n\n')) !== -1) {
+      const block = buf.slice(0, sep)
+      buf = buf.slice(sep + 2)
+      const event = block.match(/^event: (.+)$/m)?.[1]
+      const data = block.split('\n').filter((l) => l.startsWith('data: ')).map((l) => l.slice(6)).join('')
+      if (!event || !data) continue
+      const payload = JSON.parse(data)
+      if (event === 'progress') onProgress({ findings: [], ...payload })
+      else if (event === 'result') return payload
+      else if (event === 'error') return payload
+    }
+  }
+  return { error: 'Połączenie z serwerem analizy zostało przerwane.', code: 'network' }
+}
+
+export async function analyzeWithAi(
+  text: string,
+  clauses: Clause[],
+  sourceName: string,
+  perspective?: Perspective,
+  context?: string,
+  persona?: { addressAs: string; form: string },
+  onProgress?: (p: AnalysisProgress) => void,
+): Promise<AnalysisResult> {
+  let data: { result?: unknown; error?: string; code?: string; model?: string } | null
   try {
-    r = await fetch('/api/analyze', {
+    const r = await fetch('/api/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(onProgress ? { Accept: 'text/event-stream' } : {}) },
       body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })), perspective, context, persona }),
     })
+    if (onProgress && r.ok && r.headers.get('content-type')?.includes('text/event-stream')) data = await readAnalysisStream(r, onProgress)
+    else {
+      data = await r.json().catch(() => null)
+      if (!r.ok && data && !data.error) data.error = 'Nie udało się przeprowadzić analizy.'
+    }
   } catch {
     throw new AiAnalysisError('Brak połączenia z serwerem analizy.', 'network')
   }
-  const data = await r.json().catch(() => null)
-  if (!r.ok || !data?.result) throw new AiAnalysisError(data?.error ?? 'Nie udało się przeprowadzić analizy.', data?.code ?? 'unknown')
+  if (!data?.result) throw new AiAnalysisError(data?.error ?? 'Nie udało się przeprowadzić analizy.', data?.code ?? 'unknown')
   const raw = data.result as RawResult
 
   const findings: Finding[] = []

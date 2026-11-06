@@ -73,7 +73,7 @@ Analiza w sekcji **Analizuj umowę** korzysta z modelu OpenAI, jeśli serwer ma 
 
 Wyszukiwanie w internecie (narzędzie `web_search` w OpenAI, np. dane producentów urządzeń z umowy) jest domyślnie wyłączone – włącza je `OPENAI_WEB_SEARCH=1`. Liczba uwag zależy od umowy (bez sztucznego minimum); uwagi są posortowane od najważniejszych.
 
-Zmienne (`.env`): `OPENAI_API_KEY`, `OPENAI_MODEL` (domyślnie `gpt-5.5`), `OPENAI_REASONING_EFFORT` (`low`/`medium`/`high`), `API_PORT` (domyślnie 8787). Analiza przykładowej umowy trwa zwykle 40–60 s.
+Zmienne (`.env`): `OPENAI_API_KEY`, `OPENAI_MODEL` (domyślnie `gpt-5.5`), `OPENAI_ANALYZE_EFFORT` (wysiłek rozumowania przy analizie, domyślnie `low` – podobna jakość, szybciej i taniej niż `medium`), `API_PORT` (lokalnie, domyślnie 8787). Analiza typowej umowy (ok. 4 tys. tokenów) trwa ok. 60–75 s i zużywa ok. 5 tys. tokenów odpowiedzi; postęp (werdykt i kolejne uwagi) jest strumieniowany do przeglądarki na bieżąco. Zużycie tokenów każdej odpowiedzi trafia do logów serwera (`[usage]`).
 
 Jeśli serwer działa za proxy HTTP (np. w środowisku firmowym), uruchom go z `NODE_USE_ENV_PROXY=1`, aby Node korzystał ze zmiennych `HTTPS_PROXY`.
 

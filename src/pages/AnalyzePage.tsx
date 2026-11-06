@@ -6,7 +6,7 @@ import { Alert, Button, Card, PageHeader, Tabs } from '../components/ui'
 import { analyzeContract, parseClauses } from '../lib/analyzer'
 import { extractText, ExtractError, MAX_FILE_MB } from '../lib/extract'
 import { personaFor } from '../lib/persona'
-import { analyzeWithAi, getAiStatus, AiAnalysisError, type AiStatus } from '../lib/aiAnalysis'
+import { analyzeWithAi, getAiStatus, AiAnalysisError, type AiStatus, type AnalysisProgress } from '../lib/aiAnalysis'
 import { SAMPLE_CONTRACT_TEXT } from '../data/sampleTexts'
 import type { AnalysisResult, Clause, Contract, PartyId } from '../types'
 import { cx, nowIso, sleep, uid, wordCount } from '../lib/utils'
@@ -14,7 +14,7 @@ import { cx, nowIso, sleep, uid, wordCount } from '../lib/utils'
 type Mode = 'file' | 'paste'
 export const HANDOFF_KEY = 'prawoai:analyze-input'
 
-const stagesFor = (ai: boolean) => ['Odczytywanie dokumentu', 'Dzielenie na zapisy', ai ? 'Ocena zapisów przez model AI (to może potrwać do 2 minut)' : 'Sprawdzanie ryzyk i braków', 'Przygotowanie podsumowania']
+const stagesFor = (ai: boolean) => ['Odczytywanie dokumentu', 'Dzielenie na zapisy', ai ? 'Ocena zapisów przez model AI' : 'Sprawdzanie ryzyk i braków', 'Przygotowanie podsumowania']
 
 export default function AnalyzePage() {
   const { state, upsertContract } = useStore()
@@ -25,6 +25,8 @@ export default function AnalyzePage() {
   const [reading, setReading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stage, setStage] = useState(-1)
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null)
+  const [startedAt, setStartedAt] = useState(0)
   const [prep, setPrep] = useState<{ clauses: Clause[]; parties: AnalysisResult['parties'] } | null>(null)
   const [lastParty, setLastParty] = useState<PartyId | null>(null)
   const [context, setContext] = useState('')
@@ -110,7 +112,9 @@ export default function AnalyzePage() {
     let analysis: AnalysisResult
     if (withAi) {
       try {
-        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined, context, personaFor(state.profile))
+        setProgress({ phase: 'reading', findings: [] })
+        setStartedAt(Date.now())
+        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined, context, personaFor(state.profile), setProgress)
       } catch (e) {
         setStage(-1)
         setAiError(e instanceof AiAnalysisError ? e.message : 'Nie udało się przeprowadzić analizy AI.')
@@ -225,21 +229,27 @@ export default function AnalyzePage() {
           </div>
         </Card>
       ) : busy ? (
-        <Card className="p-6" >
-          <div role="status" aria-live="polite">
-            <h2 className="text-lg font-semibold text-ink-900">Analizujemy dokument…</h2>
-            <ol className="mt-4 space-y-3">
-              {stagesFor(usingAi).map((s, i) => (
-                <li key={s} className="flex items-center gap-3 text-sm">
-                  <span className={cx('grid size-6 place-items-center rounded-full', i < stage ? 'bg-brand-600 text-white' : i === stage ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-400')}>
-                    {i < stage ? <Check className="size-3.5" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <span className="size-1.5 rounded-full bg-current" />}
-                  </span>
-                  <span className={i <= stage ? 'text-ink-900' : 'text-slate-500'}>{s}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </Card>
+        usingAi && stage === 2 && progress ? (
+          <Card className="p-6">
+            <LiveAnalysis progress={progress} startedAt={startedAt} />
+          </Card>
+        ) : (
+          <Card className="p-6">
+            <div role="status" aria-live="polite">
+              <h2 className="text-lg font-semibold text-ink-900">Analizujemy dokument…</h2>
+              <ol className="mt-4 space-y-3">
+                {stagesFor(usingAi).map((s, i) => (
+                  <li key={s} className="flex items-center gap-3 text-sm">
+                    <span className={cx('grid size-6 place-items-center rounded-full', i < stage ? 'bg-brand-600 text-white' : i === stage ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-400')}>
+                      {i < stage ? <Check className="size-3.5" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <span className="size-1.5 rounded-full bg-current" />}
+                    </span>
+                    <span className={i <= stage ? 'text-ink-900' : 'text-slate-500'}>{s}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </Card>
+        )
       ) : (
         <Card className="p-5 sm:p-6">
           <Tabs<Mode>
@@ -370,6 +380,61 @@ export default function AnalyzePage() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+/** Postęp analizy AI na żywo: kolejne etapy, werdykt i uwagi w miarę ich powstawania. */
+function LiveAnalysis({ progress, startedAt }: { progress: AnalysisProgress; startedAt: number }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = Math.max(0, Math.round((now - startedAt) / 1000))
+  const order: AnalysisProgress['phase'][] = ['reading', 'writing', 'verdict', 'findings', 'finishing']
+  const at = order.indexOf(progress.phase)
+  const steps: { label: string; done: boolean; active: boolean }[] = [
+    { label: 'Czytam umowę i sprawdzam zapisy z Twojej perspektywy', done: at >= 2, active: at <= 1 },
+    { label: 'Oceniam umowę', done: at >= 3, active: at === 2 },
+    { label: progress.findings.length ? `Spisuję uwagi (${progress.findings.length})` : 'Spisuję uwagi', done: at >= 4, active: at === 3 },
+    { label: 'Przygotowuję podsumowanie i wiadomość do negocjacji', done: false, active: at === 4 },
+  ]
+  return (
+    <div role="status" aria-live="polite">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink-900">Analizujemy umowę…</h2>
+        <span className="tabular-nums text-sm text-slate-500">
+          {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
+        </span>
+      </div>
+      <p className="mt-1 text-sm text-slate-500">Zwykle trwa to 1–2 minuty. Wyniki pojawiają się poniżej na bieżąco.</p>
+      <ol className="mt-4 space-y-3">
+        {steps.map((st) => (
+          <li key={st.label} className="flex items-center gap-3 text-sm">
+            <span className={cx('grid size-6 shrink-0 place-items-center rounded-full', st.done ? 'bg-brand-600 text-white' : st.active ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-400')}>
+              {st.done ? <Check className="size-3.5" aria-hidden /> : st.active ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <span className="size-1.5 rounded-full bg-current" />}
+            </span>
+            <span className={st.done || st.active ? 'text-ink-900' : 'text-slate-500'}>{st.label}</span>
+          </li>
+        ))}
+      </ol>
+      {progress.verdict && (
+        <p className="animate-fade-up mt-5 rounded-2xl bg-ink-900 px-4 py-3 text-sm leading-relaxed text-white">{progress.verdict}</p>
+      )}
+      {progress.findings.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {progress.findings.map((f, i) => (
+            <li key={i} className="animate-fade-up flex items-start gap-2.5 rounded-xl bg-sand-50 px-3 py-2 text-sm ring-1 ring-slate-200">
+              <span className={cx('mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white', f.priority === 'najważniejsze' ? 'bg-rose-600' : 'bg-sky-600')}>{i + 1}</span>
+              <span className="min-w-0 text-slate-800">
+                {f.title}
+                {f.priority === 'najważniejsze' && <span className="ml-1.5 rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 ring-1 ring-rose-200">Najważniejsze</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

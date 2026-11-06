@@ -98,6 +98,24 @@ export function formatAddress(raw: string): string {
   return street ? `${street}\n${town}` : town
 }
 
+/** Rozbija adres na ulicę, kod pocztowy i miejscowość (do pól formularza). */
+export function splitAddress(raw: string): { street: string; postal: string; city: string } {
+  if (!raw.trim()) return { street: '', postal: '', city: '' }
+  const [first, second = ''] = formatAddress(raw).split('\n')
+  if (!second) {
+    const m = first.match(/^(\d{2}-\d{3})\s*(.*)$/)
+    return m ? { street: '', postal: m[1], city: m[2] } : { street: first, postal: '', city: '' }
+  }
+  const m = second.match(/^(\d{2}-\d{3})\s*(.*)$/)
+  return m ? { street: first, postal: m[1], city: m[2] } : { street: first, postal: '', city: second }
+}
+
+/** Składa adres z pól: „ul. Snopowa 9, 61-312 Poznań”. */
+export function joinAddress(a: { street: string; postal: string; city: string }): string {
+  const town = [a.postal.trim(), a.city.trim()].filter(Boolean).join(' ')
+  return [a.street.trim(), town].filter(Boolean).join(', ')
+}
+
 export function partyRows(p: Party): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
   if (p.address) rows.push({ label: p.kind === 'firma' ? 'Siedziba / adres' : 'Adres', value: formatAddress(p.address) })

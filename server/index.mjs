@@ -100,25 +100,20 @@ Zasady:
 - priorities: 3 najważniejsze sprawy, o które warto zawalczyć, każda jako krótkie zdanie z konkretem.
 - checks: 0–6 spraw do sprawdzenia lub potwierdzenia przed podpisaniem (tylko jeśli naprawdę są potrzebne), które NIE są zmianą konkretnego zapisu (np. „Poproś o obliczenie zapotrzebowania na ciepło”, „Potwierdź status autoryzowanego instalatora”); title + detail (2–4 zdania, konkretnie, z liczbami jeśli je znasz) + source (zawsze pusty tekst).
 - Opieraj się na treści umowy, kontekście od użytkownika i ogólnej wiedzy branżowej; nie cytuj przepisów ani orzeczeń.
-- negotiationMessage: gotowa, uprzejma i rzeczowa wiadomość od użytkownika do drugiej strony (zwracaj się „Dzień dobry,”), z ponumerowaną listą proponowanych zmian i próśb (najważniejsze najpierw, każda w 1–2 zdaniach, z konkretnymi wartościami), zakończona zdaniem o gotowości do finalizacji. Bez podpisu imieniem.`
+- ZWIĘZŁOŚĆ (ważne – odpowiedź ma być szybka): explanation najwyżej 2 krótkie zdania, impact 1 zdanie, excerpt możliwie krótki (najwyżej jedno zdanie). suggestion: dla „najważniejsze” pełne nowe brzmienie, dla „kosmetyka” zwięźle (1–2 zdania). summary najwyżej 3 zdania. checks najwyżej 4, detail 1–2 zdania. obligations najwyżej 4 punkty na stronę, dates i payments najwyżej 5 pozycji. Nie powtarzaj tych samych treści w kilku polach.
+- negotiationMessage: gotowa, uprzejma i rzeczowa wiadomość od użytkownika do drugiej strony (zwracaj się „Dzień dobry,”), z ponumerowaną listą proponowanych zmian i próśb (najważniejsze najpierw, każda w 1 zdaniu, z konkretnymi wartościami, najwyżej 8 punktów), zakończona zdaniem o gotowości do finalizacji. Bez podpisu imieniem.`
 
 const str = { type: 'string' }
 const labelValue = { type: 'object', properties: { label: str, value: str }, required: ['label', 'value'], additionalProperties: false }
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'verdict', 'priorities', 'checks', 'negotiationMessage', 'contractType', 'parties', 'obligations', 'dates', 'payments', 'findings'],
+  required: ['summary', 'verdict', 'contractType', 'parties', 'findings', 'priorities', 'checks', 'negotiationMessage', 'obligations', 'dates', 'payments'],
   properties: {
     summary: str,
     verdict: str,
-    priorities: { type: 'array', items: str },
-    checks: { type: 'array', items: { type: 'object', properties: { title: str, detail: str, source: str }, required: ['title', 'detail', 'source'], additionalProperties: false } },
-    negotiationMessage: str,
     contractType: str,
     parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str, kind: { type: 'string', enum: ['osoba', 'firma'] }, address: str, idNumber: str, representative: str }, required: ['name', 'role', 'kind', 'address', 'idNumber', 'representative'], additionalProperties: false } },
-    obligations: { type: 'array', items: { type: 'object', properties: { party: str, items: { type: 'array', items: str } }, required: ['party', 'items'], additionalProperties: false } },
-    dates: { type: 'array', items: labelValue },
-    payments: { type: 'array', items: labelValue },
     findings: {
       type: 'array',
       items: {
@@ -140,6 +135,12 @@ const SCHEMA = {
         },
       },
     },
+    priorities: { type: 'array', items: str },
+    checks: { type: 'array', items: { type: 'object', properties: { title: str, detail: str, source: str }, required: ['title', 'detail', 'source'], additionalProperties: false } },
+    negotiationMessage: str,
+    obligations: { type: 'array', items: { type: 'object', properties: { party: str, items: { type: 'array', items: str } }, required: ['party', 'items'], additionalProperties: false } },
+    dates: { type: 'array', items: labelValue },
+    payments: { type: 'array', items: labelValue },
   },
 }
 
@@ -194,7 +195,31 @@ function contextText(ctx) {
   return t ? `\n\nKontekst od użytkownika (wcześniejsze ustalenia, oferta, priorytety):\n${t}` : ''
 }
 
-async function analyze(body) {
+
+/** Postęp z niepełnego JSON-a: werdykt i kolejne uwagi (priorytet + tytuł). */
+function partialProgress(text) {
+  const unq = (x) => {
+    try {
+      return JSON.parse(`"${x}"`)
+    } catch {
+      return x
+    }
+  }
+  const verdict = text.match(/"verdict"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1]
+  const fi = text.indexOf('"findings"')
+  const findings = []
+  if (fi >= 0) {
+    const part = text.slice(fi)
+    const end = part.search(/"priorities"\s*:/)
+    const sec = end > 0 ? part.slice(0, end) : part
+    for (const m of sec.matchAll(/"priority"\s*:\s*"([^"]+)"[\s\S]*?"title"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) findings.push({ priority: m[1], title: unq(m[2]) })
+    const phase = end > 0 ? 'finishing' : 'findings'
+    return { phase, verdict: verdict ? unq(verdict) : undefined, findings }
+  }
+  return { phase: verdict ? 'verdict' : 'writing', verdict: verdict ? unq(verdict) : undefined, findings }
+}
+
+async function analyze(body, onText) {
   const clauses = Array.isArray(body?.clauses) ? body.clauses : []
   if (!clauses.length) throw Object.assign(new Error('Brak treści umowy do analizy.'), { status: 400, code: 'empty' })
   const doc = clauses.map((c, i) => `[${i}] ${String(c.title ?? '').slice(0, 200)}\n${String(c.text ?? '')}`).join('\n\n')
@@ -210,12 +235,16 @@ async function analyze(body) {
   }
   // Wyszukiwanie w internecie – domyślnie wyłączone (OPENAI_WEB_SEARCH=1 włącza).
   if (process.env.OPENAI_WEB_SEARCH === '1') payload.tools = [{ type: 'web_search' }]
-  return callModel(payload, process.env.OPENAI_REASONING_EFFORT || 'medium')
+  // Domyślnie „low”: przy analizie umów jakość jest podobna, a odpowiedź szybsza i tańsza.
+  return callModel(payload, process.env.OPENAI_ANALYZE_EFFORT || 'low', onText)
 }
 
 /** Wywołanie OpenAI Responses API ze strumieniowaniem i wynikiem JSON. */
-async function callModel(payload, effort) {
-  if (/^(gpt-5|o\d)/.test(payload.model)) payload.reasoning = { effort }
+async function callModel(payload, effort, onText) {
+  if (/^(gpt-5|o\d)/.test(payload.model)) {
+    payload.reasoning = { effort }
+    payload.text = { ...payload.text, verbosity: 'low' }
+  }
 
   // Strumieniowanie (SSE): dane płyną na bieżąco, więc pośrednie proxy nie zrywają długich analiz.
   payload.stream = true
@@ -249,7 +278,10 @@ async function callModel(payload, effort) {
         const dataLine = block.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).join('')
         if (!dataLine || dataLine === '[DONE]') continue
         const ev = JSON.parse(dataLine)
-        if (ev.type === 'response.output_text.delta') text += ev.delta
+        if (ev.type === 'response.output_text.delta') {
+          text += ev.delta
+          onText?.(text)
+        }
         else if (ev.type === 'response.refusal.delta' || ev.type === 'response.refusal.done') throw Object.assign(new Error('Model odmówił analizy tego dokumentu.'), { status: 422, code: 'refusal' })
         else if (ev.type === 'response.completed') final = ev.response
         else if (ev.type === 'response.incomplete') throw Object.assign(new Error('Analiza została przerwana (zbyt długi dokument lub limit odpowiedzi).'), { status: 502, code: 'incomplete' })
@@ -266,7 +298,9 @@ async function callModel(payload, effort) {
   if (!final && !text) throw Object.assign(new Error('Usługa AI nie zwróciła wyniku.'), { status: 502, code: 'empty_output' })
   const data = final ?? {}
   if (!text) text = data.output?.flatMap((o) => o.content ?? []).find((c) => c.type === 'output_text')?.text ?? ''
-  return { model: data.model ?? payload.model, result: JSON.parse(text) }
+  const u = data.usage
+  if (u) console.log(`[usage] ${data.model ?? payload.model} · effort ${payload.reasoning?.effort ?? '-'} · in ${u.input_tokens} (cache ${u.input_tokens_details?.cached_tokens ?? 0}) · out ${u.output_tokens} (reasoning ${u.output_tokens_details?.reasoning_tokens ?? 0})`)
+  return { model: data.model ?? payload.model, result: JSON.parse(text), usage: u ?? null }
 }
 
 // ——— Tworzenie umowy z opisu (rozmowa) ———
@@ -477,9 +511,39 @@ createServer(async (req, res) => {
       if (rateLimited(req)) return send(res, 429, { error: `Wykorzystano limit ${LIMIT_PER_HOUR} analiz na godzinę. Spróbuj później lub użyj analizy podstawowej.`, code: 'rate_limited' })
       const body = await readJson(req)
       const started = Date.now()
-      const out = await analyze(body)
-      console.log(`[analyze] ${out.model} · ${body.clauses.length} zapisów · ${out.result.findings?.length ?? 0} uwag · ${((Date.now() - started) / 1000).toFixed(1)} s`)
-      return send(res, 200, out)
+      const log = (out) => console.log(`[analyze] ${out.model} · ${body.clauses?.length ?? 0} zapisów · ${out.result.findings?.length ?? 0} uwag · ${((Date.now() - started) / 1000).toFixed(1)} s`)
+      if (!String(req.headers.accept ?? '').includes('text/event-stream')) {
+        const out = await analyze(body)
+        log(out)
+        return send(res, 200, out)
+      }
+      // Strumień postępu: werdykt i tytuły uwag pojawiają się na bieżąco.
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' })
+      const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      emit('progress', { phase: 'reading' })
+      const ping = setInterval(() => res.write(': ping\n\n'), 10_000)
+      let last = ''
+      try {
+        let lastAt = 0
+        const out = await analyze(body, (text) => {
+          if (Date.now() - lastAt < 250) return
+          lastAt = Date.now()
+          const p = partialProgress(text)
+          const key = JSON.stringify(p)
+          if (key !== last) {
+            last = key
+            emit('progress', p)
+          }
+        })
+        log(out)
+        emit('result', out)
+      } catch (e) {
+        emit('error', { error: e.status && e.status < 500 ? e.message : e.message || 'Nie udało się przeprowadzić analizy.', code: e.code ?? 'unknown' })
+      } finally {
+        clearInterval(ping)
+        res.end()
+      }
+      return
     }
     if (req.url === '/api/contract-chat' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Asystent wymaga skonfigurowanego modelu AI.', code: 'not_configured' })
