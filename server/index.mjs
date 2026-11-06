@@ -20,17 +20,23 @@ const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS || 180_000)
 const DIST = join(ROOT, 'dist')
 // Prosty limit analiz na adres IP (chroni klucz OpenAI na publicznym serwerze).
 const LIMIT_PER_HOUR = Number(process.env.ANALYZE_LIMIT_PER_HOUR || 10)
-const hits = new Map()
-function rateLimited(req) {
-  const ip = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
-  const now = Date.now()
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 3_600_000)
-  if (recent.length >= LIMIT_PER_HOUR) return true
-  recent.push(now)
-  hits.set(ip, recent)
-  if (hits.size > 5000) hits.clear()
-  return false
+const INTAKE_LIMIT_PER_HOUR = Number(process.env.INTAKE_LIMIT_PER_HOUR || 80)
+function makeLimiter(limit) {
+  const hits = new Map()
+  return (req) => {
+    const ip = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    const now = Date.now()
+    const recent = (hits.get(ip) ?? []).filter((t) => now - t < 3_600_000)
+    if (recent.length >= limit) return true
+    recent.push(now)
+    hits.set(ip, recent)
+    if (hits.size > 5000) hits.clear()
+    return false
+  }
 }
+const rateLimited = makeLimiter(LIMIT_PER_HOUR)
+const intakeLimited = makeLimiter(INTAKE_LIMIT_PER_HOUR)
+const INTAKE_MODEL = process.env.OPENAI_INTAKE_MODEL?.trim() || MODEL
 
 const SYSTEM_PROMPT = `Jesteś doświadczonym doradcą, który łączy wiedzę prawnika i praktyka biznesu. Oceniasz umowy zawierane w Polsce.
 Twoim zadaniem jest ocena umowy Z PERSPEKTYWY WSKAZANEJ STRONY (użytkownika) i propozycje zmian, które realnie poprawią jej sytuację, a jednocześnie mają szansę zostać zaakceptowane przez drugą stronę.
@@ -149,7 +155,12 @@ async function analyze(body) {
     ],
     text: { format: { type: 'json_schema', name: 'contract_analysis', strict: true, schema: SCHEMA } },
   }
-  if (/^(gpt-5|o\d)/.test(MODEL)) payload.reasoning = { effort: process.env.OPENAI_REASONING_EFFORT || 'medium' }
+  return callModel(payload, process.env.OPENAI_REASONING_EFFORT || 'medium')
+}
+
+/** Wywołanie OpenAI Responses API ze strumieniowaniem i wynikiem JSON. */
+async function callModel(payload, effort) {
+  if (/^(gpt-5|o\d)/.test(payload.model)) payload.reasoning = { effort }
 
   // Strumieniowanie (SSE): dane płyną na bieżąco, więc pośrednie proxy nie zrywają długich analiz.
   payload.stream = true
@@ -200,7 +211,92 @@ async function analyze(body) {
   if (!final && !text) throw Object.assign(new Error('Usługa AI nie zwróciła wyniku.'), { status: 502, code: 'empty_output' })
   const data = final ?? {}
   if (!text) text = data.output?.flatMap((o) => o.content ?? []).find((c) => c.type === 'output_text')?.text ?? ''
-  return { model: data.model ?? MODEL, result: JSON.parse(text) }
+  return { model: data.model ?? payload.model, result: JSON.parse(text) }
+}
+
+// ——— Tworzenie umowy z opisu (rozmowa) ———
+const S = { type: 'string' }
+const PARTY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'name', 'address', 'idNumber', 'email', 'representative'],
+  properties: { kind: { type: 'string', enum: ['osoba', 'firma', ''] }, name: S, address: S, idNumber: S, email: S, representative: S },
+}
+const INTAKE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reply', 'templateId', 'title', 'myRole', 'partyA', 'partyB', 'answers', 'ready', 'ownDataInLastMessage', 'quickReplies'],
+  properties: {
+    reply: S,
+    templateId: S,
+    title: S,
+    myRole: { type: 'string', enum: ['A', 'B', ''] },
+    partyA: PARTY_SCHEMA,
+    partyB: PARTY_SCHEMA,
+    answers: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['scope', 'amount', 'amountBasis', 'paymentDays', 'startDate', 'endDate', 'deposit', 'liability', 'notice', 'ip', 'penalty', 'confidentiality', 'extra'],
+      properties: {
+        scope: S,
+        amount: S,
+        amountBasis: { type: 'string', enum: ['ryczałt', 'miesięcznie', 'za godzinę', ''] },
+        paymentDays: S,
+        startDate: S,
+        endDate: S,
+        deposit: S,
+        liability: { type: 'string', enum: ['Do wysokości wynagrodzenia z umowy', 'Do 3-krotności wynagrodzenia z umowy', 'Na zasadach ogólnych (bez limitu)', ''] },
+        notice: { type: 'string', enum: ['7 dni', '14 dni', '1 miesiąc', '3 miesiące', 'Bez możliwości wypowiedzenia (czas określony)', ''] },
+        ip: { type: 'string', enum: ['Przeniesienie praw po zapłacie wynagrodzenia', 'Licencja niewyłączna dla zamawiającego', 'Prawa pozostają przy wykonawcy', 'Nie dotyczy', ''] },
+        penalty: { type: 'string', enum: ['Brak kar umownych', '0,1% wynagrodzenia za każdy dzień opóźnienia (maks. 10%)', '10% wynagrodzenia za odstąpienie z winy strony', 'Kwotowa kara za naruszenie poufności', ''] },
+        confidentiality: { type: 'string', enum: ['tak', 'nie', ''] },
+        extra: S,
+      },
+    },
+    ready: { type: 'boolean' },
+    ownDataInLastMessage: { type: 'boolean' },
+    quickReplies: { type: 'array', items: S },
+  },
+}
+
+const INTAKE_PROMPT = `Jesteś asystentem Prawo.ai, który w rozmowie zbiera informacje potrzebne do przygotowania PROJEKTU umowy dwustronnej. Piszesz po polsku, krótko, życzliwie, zwracając się na „Ty”.
+
+Zasady:
+- Wybierz wzór WYŁĄCZNIE z katalogu (templateId). Jeśli użytkownik chce czegoś, czego nie ma, wybierz najbliższy wzór i powiedz o tym. Dokumentów jednostronnych (np. regulamin sklepu) nie tworzysz – wyjaśnij to.
+- Strona A i strona B mają role z katalogu (A = pierwsza rola, B = druga). myRole: którą stroną jest użytkownik (jeśli nie wynika jasno z wypowiedzi – zapytaj).
+- Wyciągaj dane z dowolnego tekstu, także wklejonego w całości (nazwa, adres, NIP/KRS/PESEL, e-mail, osoba reprezentująca). Rozpoznawaj, czy strona to osoba czy firma (sp. z o.o., S.A., JDG z NIP → firma).
+- NIGDY nie wymyślaj danych. Nieznane pola zostaw puste. Kwoty jako liczby bez waluty (np. "4500"). Daty w formacie RRRR-MM-DD (dziś jest {TODAY}; „koniec grudnia” = ostatni dzień grudnia najbliższego roku).
+- Jeśli podano „zapisane dane użytkownika”, użyj ich dla strony użytkownika, gdy znasz jego rolę, i nie pytaj o nie ponownie.
+- Za każdym razem zwracasz PEŁNY aktualny stan (wszystkie znane dane, także te z wcześniejszych wiadomości), poprawiony o nowe informacje.
+- reply: potwierdź w jednym zdaniu, co zrozumiałeś, i zadaj 1–2 najważniejsze brakujące pytania. Nie pytaj o rzeczy opcjonalne, dopóki brakuje niezbędnych.
+- Niezbędne: templateId, myRole, nazwa/imię i nazwisko obu stron, scope (przedmiot/zakres), kwota – jeśli umowa jest odpłatna. Opcjonalne: adresy, NIP/PESEL, e-maile, terminy, termin płatności, odpowiedzialność, wypowiedzenie, prawa autorskie, kary, poufność.
+- ready = true, gdy masz wszystkie niezbędne dane. Wtedy w reply krótko podsumuj projekt i napisz, że można go utworzyć, ewentualnie zaproponuj 1–2 opcjonalne doprecyzowania.
+- ownDataInLastMessage = true, jeśli w OSTATNIEJ wiadomości użytkownik podał własne dane identyfikacyjne (swoją nazwę/imię i nazwisko z adresem lub NIP/PESEL).
+- quickReplies: do 4 krótkich podpowiedzi odpowiedzi (np. „Jestem zleceniodawcą”, „Do 31 grudnia”), lub pusta lista.
+- title: krótka nazwa dokumentu, np. „Umowa zlecenia – obsługa stoiska”.
+- Nie udzielasz porad prawnych w tej rozmowie – zbierasz dane do projektu.`
+
+function clip(v, n = 4000) {
+  return String(v ?? '').slice(0, n)
+}
+
+async function intake(body) {
+  const catalog = Array.isArray(body?.catalog) ? body.catalog.slice(0, 200) : []
+  const messages = Array.isArray(body?.messages) ? body.messages.slice(-20) : []
+  if (!messages.length) throw Object.assign(new Error('Brak wiadomości.'), { status: 400, code: 'empty' })
+  const catalogText = catalog.map((t) => `${clip(t.id, 60)} | ${clip(t.name, 120)} | A: ${clip(t.roles?.[0], 60)} | B: ${clip(t.roles?.[1], 60)} | ${clip(t.category, 60)}`).join('\n')
+  const today = new Date().toISOString().slice(0, 10)
+  const context = `Katalog wzorów (id | nazwa | rola strony A | rola strony B | kategoria):\n${catalogText}\n\nAktualny stan projektu (JSON):\n${clip(JSON.stringify(body?.state ?? {}), 6000)}\n\nZapisane dane użytkownika (profil):\n${body?.savedOwnParty ? clip(JSON.stringify(body.savedOwnParty), 1500) : 'brak'}`
+  const payload = {
+    model: INTAKE_MODEL,
+    input: [
+      { role: 'system', content: INTAKE_PROMPT.replace('{TODAY}', today) },
+      { role: 'system', content: context },
+      ...messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: clip(m.text, 6000) })),
+    ],
+    text: { format: { type: 'json_schema', name: 'contract_intake', strict: true, schema: INTAKE_SCHEMA } },
+  }
+  return callModel(payload, process.env.OPENAI_INTAKE_EFFORT || 'low')
 }
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff', '.json': 'application/json', '.ico': 'image/x-icon' }
@@ -231,6 +327,15 @@ createServer(async (req, res) => {
       const started = Date.now()
       const out = await analyze(body)
       console.log(`[analyze] ${out.model} · ${body.clauses.length} zapisów · ${out.result.findings?.length ?? 0} uwag · ${((Date.now() - started) / 1000).toFixed(1)} s`)
+      return send(res, 200, out)
+    }
+    if (req.url === '/api/intake' && req.method === 'POST') {
+      if (!API_KEY) return send(res, 503, { error: 'Tworzenie umowy z opisu wymaga skonfigurowanego modelu AI.', code: 'not_configured' })
+      if (intakeLimited(req)) return send(res, 429, { error: 'Wykorzystano godzinny limit wiadomości. Spróbuj później lub skorzystaj z kreatora krok po kroku.', code: 'rate_limited' })
+      const body = await readJson(req)
+      const started = Date.now()
+      const out = await intake(body)
+      console.log(`[intake] ${out.model} · ${body.messages?.length ?? 0} wiad. · ${((Date.now() - started) / 1000).toFixed(1)} s`)
       return send(res, 200, out)
     }
     if (req.url?.startsWith('/api/')) return send(res, 404, { error: 'Nie znaleziono', code: 'not_found' })

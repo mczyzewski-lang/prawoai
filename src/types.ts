@@ -188,7 +188,11 @@ export interface Conversation {
 export interface Profile {
   name: string
   email: string
+  /** Zapisane dane użytkownika jako strony umowy – do automatycznego uzupełniania. */
+  ownParty?: SavedParty
 }
+
+export type SavedParty = Pick<Party, 'kind' | 'name' | 'address' | 'idNumber' | 'email' | 'representative'>
 
 export interface GuestAccount {
   name: string

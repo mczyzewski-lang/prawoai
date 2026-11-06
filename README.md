@@ -28,6 +28,17 @@ npm run dev:web    # sam frontend (bez API – analiza działa w trybie podstawo
 npm run typecheck  # tylko sprawdzenie typów
 ```
 
+## Tworzenie umowy z opisu (OpenAI)
+
+Na stronie głównej wpisujesz własnymi słowami, jaką umowę potrzebujesz (albo klikasz skrót, np. „Umowa zlecenia”). Ekran `/nowa` prowadzi rozmowę przez `POST /api/intake`:
+
+- model dobiera wzór z katalogu, rozpoznaje strony i dane wklejone w dowolnej formie (adres, NIP/KRS/PESEL, e-mail), terminy i kwoty, i dopytuje tylko o brakujące niezbędne informacje;
+- po prawej na bieżąco widać zbierany projekt; „Utwórz projekt umowy” składa umowę ze wzoru, a „Dopracuj w kreatorze” otwiera kreator krok po kroku z uzupełnionymi danymi;
+- gdy podasz własne dane, aplikacja pyta, czy zapisać je w profilu – potem uzupełnia je automatycznie (także w kreatorze). Zapisane dane można usunąć w menu konta;
+- bez `OPENAI_API_KEY` ekran proponuje pasujący wzór w kreatorze krok po kroku.
+
+Zmienne: `OPENAI_INTAKE_MODEL` (domyślnie jak `OPENAI_MODEL`), `OPENAI_INTAKE_EFFORT` (domyślnie `low`), `INTAKE_LIMIT_PER_HOUR` (domyślnie 80 wiadomości na IP).
+
 ## Ocena umów przez OpenAI
 
 Analiza w sekcji **Analizuj umowę** korzysta z modelu OpenAI, jeśli serwer ma ustawiony `OPENAI_API_KEY`:

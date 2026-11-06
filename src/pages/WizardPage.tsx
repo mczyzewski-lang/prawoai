@@ -52,7 +52,8 @@ export default function WizardPage() {
 }
 
 function Wizard({ t }: { t: TemplateDefinition }) {
-  const { state, upsertContract } = useStore()
+  const { state, upsertContract, updateProfile } = useStore()
+  const [rememberOwn, setRememberOwn] = useState(false)
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -109,6 +110,14 @@ function Wizard({ t }: { t: TemplateDefinition }) {
 
   const go = (step: number) => {
     if (step > draft.step && !validate(draft.step)) return
+    if (draft.step === 1 && step > 1 && rememberOwn) {
+      const own = draft.parties.find((p) => p.id === draft.myRole)
+      if (own) {
+        updateProfile({ ...state.profile, ownParty: { kind: own.kind, name: own.name, address: own.address, idNumber: own.idNumber, email: own.email, representative: own.representative } })
+        toast('Zapisano Twoje dane – uzupełnimy je automatycznie w kolejnych umowach')
+      }
+      setRememberOwn(false)
+    }
     patch({ step })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -270,11 +279,29 @@ function Wizard({ t }: { t: TemplateDefinition }) {
                 <TextField label="E-mail" type="email" value={p.email} onChange={(e) => setParty(p.id, { email: e.target.value })} optional error={errors[`${p.id}.email`]} inputMode="email" />
                 {p.kind === 'firma' && <TextField label="Osoba reprezentująca" value={p.representative} onChange={(e) => setParty(p.id, { representative: e.target.value })} optional />}
               </div>
-              {p.id === draft.myRole && !p.email && (
-                <button type="button" className="mt-3 text-sm font-medium text-brand-700 hover:underline" onClick={() => setParty(p.id, { email: state.profile.email, ...(p.kind === 'osoba' && !p.name ? { name: state.profile.name } : {}) })}>
-                  Uzupełnij moimi danymi z profilu
+              {p.id === draft.myRole && !p.name && (
+                <button
+                  type="button"
+                  className="mt-3 text-sm font-medium text-brand-700 hover:underline"
+                  onClick={() =>
+                    setParty(p.id, state.profile.ownParty ? { ...state.profile.ownParty } : { email: state.profile.email, ...(p.kind === 'osoba' ? { name: state.profile.name } : {}) })
+                  }
+                >
+                  {state.profile.ownParty ? `Uzupełnij moimi zapisanymi danymi (${state.profile.ownParty.name})` : 'Uzupełnij moimi danymi z profilu'}
                 </button>
               )}
+              {p.id === draft.myRole &&
+                p.name &&
+                (p.address || p.idNumber) &&
+                (!state.profile.ownParty || state.profile.ownParty.name !== p.name || state.profile.ownParty.address !== p.address || state.profile.ownParty.idNumber !== p.idNumber) && (
+                  <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl bg-brand-50/60 p-3 text-sm text-slate-700 ring-1 ring-brand-100">
+                    <input type="checkbox" checked={rememberOwn} onChange={(e) => setRememberOwn(e.target.checked)} className="mt-0.5 size-4 accent-brand-600" />
+                    <span>
+                      <span className="font-medium text-ink-900">{state.profile.ownParty ? 'Zaktualizuj moje zapisane dane' : 'Zapamiętaj moje dane'}</span>
+                      <span className="block text-xs text-slate-500">W kolejnych umowach uzupełnimy je automatycznie.</span>
+                    </span>
+                  </label>
+                )}
             </Card>
           ))}
         </div>

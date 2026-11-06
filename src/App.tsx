@@ -9,6 +9,7 @@ import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
 import { OwnerSignPage, SharedSignPage } from './pages/SignPage'
 import AssistantPage from './pages/AssistantPage'
 import NotFoundPage from './pages/NotFoundPage'
+import NewContractPage from './pages/NewContractPage'
 import { VersionBadge } from './components/VersionBadge'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
+        <Route path="nowa" element={<NewContractPage />} />
         <Route path="wzory" element={<TemplatesPage />} />
         <Route path="wzory/:templateId" element={<WizardPage />} />
         <Route path="analiza" element={<AnalyzePage />} />

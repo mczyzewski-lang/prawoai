@@ -31,7 +31,7 @@ const NAV = [
 ]
 
 function ProfileMenu() {
-  const { state, resetDemo } = useStore()
+  const { state, resetDemo, updateProfile } = useStore()
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -61,6 +61,24 @@ function ProfileMenu() {
             <p className="text-sm font-semibold text-ink-900">{state.profile.name}</p>
             <p className="truncate text-xs text-slate-500">{state.profile.email}</p>
           </div>
+          {state.profile.ownParty && (
+            <div className="mx-1 mb-1 rounded-xl bg-sand-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Moje dane do umów</p>
+              <p className="mt-0.5 truncate text-sm text-ink-900">{state.profile.ownParty.name}</p>
+              <p className="truncate text-xs text-slate-500">{[state.profile.ownParty.address, state.profile.ownParty.idNumber].filter(Boolean).join(' · ')}</p>
+              <button
+                role="menuitem"
+                type="button"
+                className="mt-1 text-xs font-medium text-red-700 hover:underline"
+                onClick={() => {
+                  updateProfile({ ...state.profile, ownParty: undefined })
+                  toast('Usunięto zapisane dane')
+                }}
+              >
+                Usuń zapisane dane
+              </button>
+            </div>
+          )}
           <div className="my-1 h-px bg-slate-100" />
           <Link role="menuitem" to="/umowy" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
             <FolderOpen className="size-4" aria-hidden /> Moje umowy
