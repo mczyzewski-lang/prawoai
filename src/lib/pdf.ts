@@ -1,6 +1,6 @@
 import type { Contract, Party } from '../types'
 import { clausesToText } from './contractGenerator'
-import { BRAND_COLORS, BRAND_PATHS } from './brand'
+import { BRAND_COLORS, BRAND_PATHS, WORDMARK_PATHS } from './brand'
 import { formatDate, formatDateTime, sha256 } from './utils'
 import { documentKind, isPartiesClause, partiesClauseIsGenerated, partyRows, splitClauseLines, stageLabel } from './documentFormat'
 
@@ -72,22 +72,47 @@ function drawMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   ctx.translate(x, y)
   ctx.scale(k, k)
   ctx.fillStyle = BRAND_COLORS.ink
-  roundRect(ctx, 0, 0, 32, 32, 9)
+  roundRect(ctx, 0, 0, 32, 32, 8)
   ctx.fill()
   ctx.fillStyle = BRAND_COLORS.paper
-  ctx.fill(new Path2D(BRAND_PATHS.page))
-  ctx.fillStyle = BRAND_COLORS.tealLight
-  ctx.fill(new Path2D(BRAND_PATHS.fold))
-  ctx.fillStyle = 'rgba(11,42,51,0.35)'
-  ctx.fill(new Path2D(BRAND_PATHS.line1))
-  ctx.fill(new Path2D(BRAND_PATHS.line2))
-  const spark = new Path2D(BRAND_PATHS.spark)
-  ctx.lineWidth = 2.2
-  ctx.lineJoin = 'round'
-  ctx.strokeStyle = BRAND_COLORS.ink
-  ctx.stroke(spark)
+  ctx.fill(new Path2D(BRAND_PATHS.letter), 'evenodd')
   ctx.fillStyle = BRAND_COLORS.teal
-  ctx.fill(spark)
+  ctx.fill(new Path2D(BRAND_PATHS.spark))
+  ctx.strokeStyle = BRAND_COLORS.teal
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  ctx.stroke(new Path2D(BRAND_PATHS.swash))
+  ctx.restore()
+}
+
+/** Napis „Prawo✦ai” z linią podpisu; `y` = linia bazowa, `size` = stopień pisma. */
+function drawWordmark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  ctx.save()
+  ctx.font = `700 ${size}px ${SANS}`
+  if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${-0.03 * size}px`
+  ctx.fillStyle = BRAND_COLORS.ink
+  ctx.fillText('Prawo', x, y)
+  const w = ctx.measureText('Prawo').width
+  // zawijas pod „Prawo”
+  ctx.save()
+  ctx.translate(x - w * 0.03, y + size * 0.14)
+  ctx.scale((w * 1.06) / 120, (size * 0.3) / 16)
+  ctx.strokeStyle = BRAND_COLORS.teal
+  ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.stroke(new Path2D(WORDMARK_PATHS.swash))
+  ctx.restore()
+  // iskra
+  const sp = size * 0.4
+  const sx = x + w + size * 0.03
+  ctx.save()
+  ctx.translate(sx, y - sp)
+  ctx.scale(sp / 20, sp / 20)
+  ctx.fillStyle = BRAND_COLORS.teal
+  ctx.fill(new Path2D(WORDMARK_PATHS.spark))
+  ctx.restore()
+  ctx.fillStyle = BRAND_COLORS.tealDark
+  ctx.fillText('ai', sx + sp + size * 0.03, y)
   ctx.restore()
 }
 
@@ -148,10 +173,7 @@ export async function downloadContractPdf(c: Contract): Promise<void> {
   ops.push({
     h: 30,
     draw: (ctx, y) => {
-      drawMark(ctx, M, y, 16)
-      ctx.font = `600 10px ${SANS}`
-      ctx.fillStyle = C.ink
-      ctx.fillText('Prawo.ai', M + 22, y + 11.5)
+      drawWordmark(ctx, M, y + 11.5, 12)
       ctx.font = `500 7.5px ${SANS}`
       ctx.fillStyle = C.muted
       const r = `WERSJA ${version} · ${formatDate(date).toUpperCase()}`

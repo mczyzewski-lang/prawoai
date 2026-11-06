@@ -2,7 +2,7 @@ import { Building2, Check, PenLine, Pencil, User } from 'lucide-react'
 import type { Contract, Party, PartyId } from '../../types'
 import { cx, formatDate, formatDateTime } from '../../lib/utils'
 import { documentKind, partyRows, splitClauseLines, stageLabel } from '../../lib/documentFormat'
-import { BrandSymbol } from '../BrandSymbol'
+import { BrandSymbol, Wordmark } from '../BrandSymbol'
 import { HighlightedText, type NumberedFinding } from './Annotations'
 
 /** Mały znak Prawo.ai do nagłówka dokumentu. */
@@ -21,9 +21,7 @@ export function DocumentHeader({ c, eyebrow }: { c: Contract; eyebrow?: string }
     <header className="relative overflow-hidden border-b border-slate-200/70 px-5 pb-7 pt-5 sm:px-10">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-500 via-brand-300 to-ink-800" aria-hidden />
       <div className="flex items-center justify-between gap-3 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-        <span className="flex items-center gap-2 text-ink-900">
-          <BrandMark /> Prawo.ai
-        </span>
+        <Wordmark className="text-[15px] normal-case" />
         <span className="text-right">
           Wersja {version} · {formatDate(date)}
         </span>

@@ -2,7 +2,7 @@ import { ArrowLeftRight, BadgeCheck, FileText } from 'lucide-react'
 import type { TemplateDefinition } from '../data/templates'
 import { getCategory } from '../data/templates'
 import { cx } from '../lib/utils'
-import { BrandMark } from './workspace/DocumentParts'
+import { Wordmark } from './BrandSymbol'
 
 /**
  * Okładka wzoru w stylu „3D” – dokument w perspektywie z grzbietem kartek.
@@ -35,9 +35,7 @@ export function TemplateCover({ t, size = 'lg', className }: { t: TemplateDefini
 
           <div className="relative flex h-full flex-col">
             <div className="flex items-center justify-between gap-2">
-              <span className={cx('flex items-center gap-1.5 font-semibold tracking-wide', lg ? 'text-xs' : 'text-[9px]')}>
-                <BrandMark className={lg ? 'size-4' : 'size-3'} /> Prawo.ai
-              </span>
+              <Wordmark light className={lg ? 'text-sm' : 'text-[10px]'} />
               {lg && <span className="rounded-full bg-white/15 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/85">Wzór umowy</span>}
             </div>
 

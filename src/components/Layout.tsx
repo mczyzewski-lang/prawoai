@@ -2,21 +2,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
 import { ProfileModal } from './ProfileModal'
-import { BrandSymbol } from './BrandSymbol'
+import { Wordmark } from './BrandSymbol'
 import { useStore } from '../store/AppStore'
 import { Alert, Avatar, Button, Modal } from './ui'
 import { cx } from '../lib/utils'
 import { useToast } from './Toast'
 
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
-  return (
-    <span className={cx('inline-flex items-center gap-2', className)}>
-      <BrandSymbol className="size-8 shrink-0" light={light} />
-      <span className={cx('text-lg font-semibold tracking-tight', light ? 'text-white' : 'text-ink-900')}>
-        Prawo<span className="text-brand-600">.ai</span>
-      </span>
-    </span>
-  )
+  return <Wordmark light={light} className={cx('text-[22px]', className)} />
 }
 
 const NAV = [
