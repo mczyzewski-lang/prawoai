@@ -1,16 +1,17 @@
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, ClipboardPaste, FileText, FileUp, Loader2, Lock, Sparkles, Trash2, Upload } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { Alert, Button, Card, PageHeader, Tabs } from '../components/ui'
 import { analyzeContract, parseClauses } from '../lib/analyzer'
 import { extractText, ExtractError, MAX_FILE_MB } from '../lib/extract'
+import { analyzeWithAi, getAiStatus, AiAnalysisError, type AiStatus } from '../lib/aiAnalysis'
 import { SAMPLE_CONTRACT_TEXT } from '../data/sampleTexts'
 import type { AnalysisResult, Clause, Contract, PartyId } from '../types'
 import { cx, nowIso, sleep, uid, wordCount } from '../lib/utils'
 
 type Mode = 'file' | 'paste'
-const STAGES = ['Odczytywanie dokumentu', 'Dzielenie na zapisy', 'Sprawdzanie ryzyk i braków', 'Przygotowanie podsumowania']
+const stagesFor = (ai: boolean) => ['Odczytywanie dokumentu', 'Dzielenie na zapisy', ai ? 'Ocena zapisów przez model AI (to może potrwać do 2 minut)' : 'Sprawdzanie ryzyk i braków', 'Przygotowanie podsumowania']
 
 export default function AnalyzePage() {
   const { state, upsertContract } = useStore()
@@ -23,6 +24,13 @@ export default function AnalyzePage() {
   const [stage, setStage] = useState(-1)
   const [result, setResult] = useState<{ clauses: Clause[]; analysis: AnalysisResult; text: string } | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [ai, setAi] = useState<AiStatus | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [usingAi, setUsingAi] = useState(false)
+
+  useEffect(() => {
+    void getAiStatus().then(setAi)
+  }, [])
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = async (file: File) => {
@@ -48,20 +56,35 @@ export default function AnalyzePage() {
     if (f) void handleFile(f)
   }
 
-  const run = async () => {
+  const run = async (forceRules = false) => {
     setError(null)
+    setAiError(null)
     if (wordCount(text) < 30) {
       setError('Tekst jest za krótki, aby go przeanalizować. Wklej całą umowę (co najmniej kilka zapisów).')
       return
     }
+    const withAi = !forceRules && !!ai?.ai
+    setUsingAi(withAi)
     setStage(0)
-    await sleep(500)
+    await sleep(400)
     setStage(1)
     const clauses = parseClauses(text)
-    await sleep(500)
+    await sleep(400)
     setStage(2)
-    const analysis = analyzeContract(text, clauses, fileName ?? 'Wklejony tekst')
-    await sleep(700)
+    const source = fileName ?? 'Wklejony tekst'
+    let analysis
+    if (withAi) {
+      try {
+        analysis = await analyzeWithAi(text, clauses, source)
+      } catch (e) {
+        setStage(-1)
+        setAiError(e instanceof AiAnalysisError ? e.message : 'Nie udało się przeprowadzić analizy AI.')
+        return
+      }
+    } else {
+      analysis = analyzeContract(text, clauses, source)
+      await sleep(700)
+    }
     setStage(3)
     await sleep(400)
     setStage(-1)
@@ -142,7 +165,7 @@ export default function AnalyzePage() {
           <div role="status" aria-live="polite">
             <h2 className="text-lg font-semibold text-ink-900">Analizujemy dokument…</h2>
             <ol className="mt-4 space-y-3">
-              {STAGES.map((s, i) => (
+              {stagesFor(usingAi).map((s, i) => (
                 <li key={s} className="flex items-center gap-3 text-sm">
                   <span className={cx('grid size-6 place-items-center rounded-full', i < stage ? 'bg-brand-600 text-white' : i === stage ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-400')}>
                     {i < stage ? <Check className="size-3.5" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <span className="size-1.5 rounded-full bg-current" />}
@@ -257,12 +280,26 @@ export default function AnalyzePage() {
               {error}
             </Alert>
           )}
+          {aiError && (
+            <Alert tone="error" className="mt-4" title="Ocena przez model AI nie powiodła się">
+              {aiError}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" onClick={() => run()}>
+                  Spróbuj ponownie
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => run(true)}>
+                  Użyj analizy podstawowej
+                </Button>
+              </div>
+            </Alert>
+          )}
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-center gap-1.5 text-xs text-slate-500">
-              <Lock className="size-3.5" aria-hidden /> Plik jest odczytywany na Twoim urządzeniu.
+              <Lock className="size-3.5 shrink-0" aria-hidden />
+              {ai?.ai ? 'Plik jest odczytywany na Twoim urządzeniu, a tekst umowy zostanie przesłany do oceny przez model AI (OpenAI).' : 'Plik jest odczytywany na Twoim urządzeniu.'}
             </p>
-            <Button variant="accent" size="lg" onClick={run} disabled={!text.trim() || reading} icon={<Sparkles className="size-4" />}>
+            <Button variant="accent" size="lg" onClick={() => run()} disabled={!text.trim() || reading} icon={<Sparkles className="size-4" />}>
               Analizuj umowę
             </Button>
           </div>

@@ -98,6 +98,9 @@ export interface AnalysisResult {
   findings: Finding[]
   sourceName: string
   wordCount: number
+  /** Kto wykonał ocenę: model AI czy analiza regułowa. */
+  engine?: 'ai' | 'rules'
+  model?: string
 }
 
 export interface ChatMessage {

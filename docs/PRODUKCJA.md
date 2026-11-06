@@ -21,7 +21,8 @@ Ten dokument opisuje, które elementy demo wymagają backendu, modelu AI, bezpie
 
 ## 3. Model AI i źródła prawa
 
-- Analiza umowy (`src/lib/analyzer.ts`) i asystent (`src/data/assistantTopics.ts`, `src/lib/privateAssistant.ts`) to logika regułowa. Do zastąpienia wywołaniem modelu AI po stronie serwera (klucz API nie może trafić do przeglądarki).
+- Analiza umowy jest już wykonywana przez model OpenAI po stronie serwera (`server/index.mjs`, `src/lib/aiAnalysis.ts`), z analizą regułową jako zapasem. Przed produkcją: uwierzytelnienie i limity zapytań na `/api/analyze` (dziś endpoint jest otwarty), kolejka dla długich dokumentów, rejestrowanie kosztów, umowa powierzenia przetwarzania z dostawcą modelu i ustawienia retencji danych po stronie OpenAI, informacja dla użytkownika, że treść umowy jest przesyłana do zewnętrznego dostawcy.
+- Asystent (`src/data/assistantTopics.ts`) i prywatny asystent w umowie (`src/lib/privateAssistant.ts`) to nadal logika regułowa – do podłączenia do modelu w ten sam sposób.
 - Źródła prawa: aktualne teksty aktów prawnych i orzecznictwa z wiarygodnego źródła; odpowiedzi z odwołaniami tylko do faktycznie pobranych źródeł (bez generowania cytatów z pamięci modelu).
 - Zasady neutralności: asystent w negocjacjach nie może działać na korzyść jednej strony w sposób ukryty ani zmieniać dokumentu – każda zmiana przechodzi przez propozycję i akceptację drugiej strony (zachowane w obecnym przepływie).
 - Ewaluacja jakości (zestaw testowych umów, przegląd prawników), monitorowanie błędów, jasne komunikaty o ograniczeniach i informacja, że to nie jest porada prawna.

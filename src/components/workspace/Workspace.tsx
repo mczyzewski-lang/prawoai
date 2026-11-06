@@ -529,7 +529,10 @@ function AnalysisPanel({ c, onSelect, viewerName }: { c: Contract; onSelect: (id
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">Wstępna, automatyczna ocena treści dokumentu ({a.sourceName}). Nie zastępuje porady prawnika.</p>
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+          {a.engine === 'ai' ? `Ocena wykonana przez model AI (OpenAI${a.model ? `, ${a.model}` : ''}) na podstawie treści dokumentu „${a.sourceName}”. Model może się mylić – sprawdź uwagi przed użyciem.` : `Analiza podstawowa: automatyczne wyszukiwanie typowych zapisów i braków w dokumencie „${a.sourceName}”.`}{' '}
+          Nie zastępuje porady prawnika.
+        </p>
       </div>
 
       <details className="group rounded-2xl bg-white ring-1 ring-slate-200" open>

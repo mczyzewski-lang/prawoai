@@ -8,9 +8,12 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"node --watch-path=server server/index.mjs\" \"vite\"",
+    "dev:web": "vite",
+    "dev:api": "node --watch-path=server server/index.mjs",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
+    "start": "node server/index.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -31,6 +34,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
     "tailwindcss": "^4.3.4",
     "typescript": "~5.9",
     "vite": "^8.3.6"

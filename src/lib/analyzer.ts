@@ -420,6 +420,7 @@ export function analyzeContract(text: string, clauses: Clause[], sourceName: str
     findings: findings.sort((a, b) => sevRank(a.severity) - sevRank(b.severity)),
     sourceName,
     wordCount: words,
+    engine: 'rules',
   }
 }
 

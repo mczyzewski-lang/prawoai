@@ -15,18 +15,32 @@ Wymagany Node.js **20.19+** (lub 22.12+).
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+cp .env.example .env   # wpisz OPENAI_API_KEY, aby włączyć ocenę umów przez OpenAI
+npm run dev            # aplikacja: http://localhost:5173, API: http://localhost:8787
 ```
 
 Inne skrypty:
 
 ```bash
 npm run build      # sprawdzenie typów (tsc -b) + build produkcyjny do dist/
-npm run preview    # podgląd builda (http://localhost:4173)
+npm start          # serwer produkcyjny: API + zbudowana aplikacja z dist/ (http://localhost:8787)
+npm run dev:web    # sam frontend (bez API – analiza działa w trybie podstawowym)
 npm run typecheck  # tylko sprawdzenie typów
 ```
 
-Aplikacja używa routingu po stronie klienta (`BrowserRouter`). Przy hostingu statycznym skonfiguruj przekierowanie wszystkich ścieżek na `index.html` (`vite dev`/`vite preview` robią to automatycznie).
+## Ocena umów przez OpenAI
+
+Analiza w sekcji **Analizuj umowę** korzysta z modelu OpenAI, jeśli serwer ma ustawiony `OPENAI_API_KEY`:
+
+- Przeglądarka wysyła tekst umowy (podzielony na zapisy) do `POST /api/analyze` w `server/index.mjs`. Serwer wywołuje OpenAI Responses API ze strukturalnym wynikiem (JSON Schema) i strumieniowaniem. **Klucz nigdy nie trafia do przeglądarki.**
+- Model zwraca podsumowanie, strony, obowiązki, terminy, płatności oraz do 12 uwag. Każda uwaga ma poziom ryzyka, wyjaśnienie, dosłowny cytat z zapisu i propozycję nowego brzmienia. Brakujące postanowienia mają propozycję treści nowego zapisu.
+- Instrukcja dla modelu wymaga neutralności wobec obu stron i zabrania powoływania się na numery przepisów czy orzeczenia.
+- Uwagi są przypinane do zapisów, a „Akceptuj” podmienia dokładnie zacytowany fragment (lub tworzy propozycję dla drugiej strony, jeśli umowa jest już udostępniona).
+- Bez klucza, albo po wybraniu „Użyj analizy podstawowej” przy błędzie, działa dotychczasowa analiza regułowa (`src/lib/analyzer.ts`). Panel analizy zawsze pokazuje, kto wykonał ocenę.
+
+Zmienne (`.env`): `OPENAI_API_KEY`, `OPENAI_MODEL` (domyślnie `gpt-5.5`), `OPENAI_REASONING_EFFORT` (`low`/`medium`/`high`), `API_PORT` (domyślnie 8787). Analiza przykładowej umowy trwa zwykle 40–60 s.
+
+Jeśli serwer działa za proxy HTTP (np. w środowisku firmowym), uruchom go z `NODE_USE_ENV_PROXY=1`, aby Node korzystał ze zmiennych `HTTPS_PROXY`.
 
 ## Jak przetestować ścieżki demo
 
@@ -66,7 +80,7 @@ src/
 Szczegóły i lista prac przed użyciem produkcyjnym: [`docs/PRODUKCJA.md`](docs/PRODUKCJA.md).
 
 - **Wzory** mają status „przykładowy”. Treść projektu jest składana z ogólnych klauzul i **nie jest zweryfikowanym dokumentem prawnym**.
-- **Analiza umowy** jest regułowa (wyszukiwanie typowych sformułowań i braków), nie korzysta z modelu AI ani źródeł prawa.
-- **Asystent AI** prowadzi rozmowę według zaprogramowanych scenariuszy; nie cytuje przepisów.
+- **Analiza umowy** korzysta z modelu OpenAI (gdy ustawiono klucz) – model nie ma dostępu do aktualnych źródeł prawa i może się mylić. Bez klucza działa analiza regułowa.
+- **Asystent AI**, prywatny asystent w umowie i ocena dokumentu dołączonego w czacie nadal działają według scenariuszy i reguł (bez modelu AI).
 - **Negocjacje między stronami** działają w obrębie jednej przeglądarki (wspólny `localStorage`, synchronizacja między kartami). Brak backendu, prawdziwych kont i wysyłki e-mail.
 - **Podpis ekranowy** to odwzorowanie podpisu odręcznego – nie jest podpisem kwalifikowanym.
