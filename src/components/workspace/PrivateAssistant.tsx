@@ -83,6 +83,7 @@ export function PrivateAssistant({
   onOpenClause,
   contacts,
   persona,
+  pendingReveal,
 }: {
   contract: Contract
   viewer: PartyId
@@ -97,6 +98,8 @@ export function PrivateAssistant({
   onOpenClause: (clauseId: string) => void
   contacts: Mention[]
   persona?: { addressAs: string; form: 'f' | 'm' | 'n' }
+  /** Świeżo wygenerowana umowa: ostatnia odpowiedź pojawia się po chwili. */
+  pendingReveal?: boolean
 }) {
   const messages = contract.privateChats[viewer] ?? []
   const [input, setInput] = useState('')
@@ -220,8 +223,8 @@ export function PrivateAssistant({
               : 'Zapytaj o dowolny zapis. Asystent wyjaśnia i podpowiada, ale nie zmienia umowy bez Twojej decyzji.'}
           </p>
         )}
-        {messages.map((m) => (
-          <div key={m.id} className={cx('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+        {(pendingReveal && messages[messages.length - 1]?.role === 'assistant' ? messages.slice(0, -1) : messages).map((m, mi, arr) => (
+          <div key={m.id} className={cx('flex', m.role === 'user' ? 'justify-end' : 'justify-start', mi === arr.length - 1 && m.role === 'assistant' && 'animate-fade-up')}>
             <div className={cx('max-w-[94%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed', m.role === 'user' ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-sand-50 text-slate-800 ring-1 ring-slate-200')}>
               <p className="whitespace-pre-wrap">{m.role === 'assistant' ? <Linkified text={m.text} clauses={contract.clauses} onOpen={onOpenClause} /> : <MentionText text={m.text} labels={m.mentions ?? []} tone="bubble" />}</p>
               {m.changes && m.changes.length > 0 && (
@@ -256,7 +259,7 @@ export function PrivateAssistant({
             </div>
           </div>
         ))}
-        {thinking && (
+        {(thinking || pendingReveal) && (
           <div className="flex" role="status" aria-label="Asystent pisze">
             <div className="flex gap-1 rounded-2xl rounded-bl-md bg-sand-50 px-4 py-3 ring-1 ring-slate-200">
               <span className="typing-dot size-1.5 rounded-full bg-slate-500" />
@@ -361,7 +364,7 @@ export function PrivateAssistant({
                 void ask(input)
               }
             }}
-            placeholder={ai ? 'Napisz, co zmienić… (@ – dane osoby z konta)' : 'Zapytaj o umowę… (@ – wstaw dane osoby z konta)'}
+            placeholder={ai ? 'Napisz, co zmienić… (@ – osoba z konta)' : 'Zapytaj… (@ – osoba z konta)'}
             aria-autocomplete="list"
             className="relative block max-h-36 min-h-11 w-full resize-none rounded-xl border border-slate-300 bg-transparent px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
           />

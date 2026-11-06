@@ -68,6 +68,20 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const hasAnalysis = isOwner && !!c.analysis
   const defaultPanel: Panel = hasAnalysis && c.stage === 'draft' ? 'analiza' : c.stage === 'draft' && isOwner ? 'asystent' : 'negocjacje'
   const panelParam = params.get('panel') as Panel | null
+  // Świeżo wygenerowana umowa: animacja wejścia i odpowiedź asystenta po chwili.
+  const [fresh] = useState(() => params.get('nowa') === '1')
+  const [revealed, setRevealed] = useState(!fresh)
+  useEffect(() => {
+    if (!fresh) return
+    const t = setTimeout(() => {
+      setRevealed(true)
+      const next = new URLSearchParams(window.location.search)
+      next.delete('nowa')
+      setParams(next, { replace: true })
+    }, 1300)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fresh])
   const [panel, setPanelState] = useState<Panel>(panelParam ?? 'dokument')
   const [desktopPanel, setDesktopPanel] = useState<Exclude<Panel, 'dokument'>>(panelParam && panelParam !== 'dokument' ? panelParam : defaultPanel)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -266,6 +280,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           }}
           onOpenClause={(id) => selectClause(id)}
           contacts={isOwner ? collectContacts(appState.profile.ownParty, appState.contracts) : []}
+          pendingReveal={fresh && !revealed}
           persona={isOwner ? personaFor(appState.profile) : undefined}
         />
       )
@@ -291,7 +306,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink-900 sm:text-[28px]">{c.title}</h1>
             <p className="mt-1 text-sm text-slate-600">
-              <span className="font-medium text-ink-900">Ty</span> jako {me.role} ({me.name}) · druga strona: <span className="font-medium text-ink-900">{other.name}</span> ({other.role})
+              <span className="font-medium text-ink-900">Ty</span> jako {me.role}{me.name ? ` (${me.name})` : ''} · druga strona: <span className="font-medium text-ink-900">{other.name || 'dane do uzupełnienia'}</span> ({other.role})
             </p>
           </div>
           <div className="flex flex-wrap gap-2 lg:max-w-[52%] lg:justify-end">
@@ -418,7 +433,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               To Twój projekt – możesz swobodnie edytować zapisy. Po wysłaniu do drugiej strony zmiany będą wymagały akceptacji obu stron.
             </Alert>
           )}
-          <article className="rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200" aria-label="Treść umowy">
+          <article className={cx("rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200", fresh && "animate-doc-in")} aria-label="Treść umowy">
             <DocumentHeader c={c} />
             <div className="divide-y divide-slate-200/60">
               {c.clauses.map((cl, i) => (

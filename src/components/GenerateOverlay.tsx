@@ -42,7 +42,7 @@ export function useGenerate() {
       if (out.kind === 'redirect') navigate(out.to)
       else {
         upsertContract(out.contract)
-        navigate(`/umowy/${out.contract.id}?panel=asystent`)
+        navigate(`/umowy/${out.contract.id}?panel=asystent&nowa=1`)
       }
     } catch (e) {
       toast(e instanceof IntakeError ? e.message : 'Nie udało się wygenerować umowy. Spróbuj ponownie.', 'error')

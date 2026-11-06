@@ -66,7 +66,15 @@ function PartyCard({ p, index, isViewer, onEdit }: { p: Party; index: number; is
         <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-sand-100 text-ink-700" aria-hidden>
           <Icon className="size-4" />
         </span>
-        <p className="font-serif text-[18px] font-semibold leading-snug text-ink-900">{p.name || <span className="italic text-slate-400">nie uzupełniono</span>}</p>
+        {p.name ? (
+          <p className="font-serif text-[18px] font-semibold leading-snug text-ink-900">{p.name}</p>
+        ) : onEdit ? (
+          <button type="button" onClick={onEdit} className="animate-attention rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 hover:bg-amber-100">
+            + Uzupełnij dane
+          </button>
+        ) : (
+          <p className="font-serif text-[18px] font-semibold italic leading-snug text-slate-400">nie uzupełniono</p>
+        )}
       </div>
       {rows.length > 0 && (
         <dl className="mt-4 space-y-2 border-t border-slate-100 pt-3 text-sm">
@@ -98,6 +106,25 @@ export function PartiesColumns({ parties, viewer, onEdit }: { parties: Party[]; 
   )
 }
 
+/** Wyróżnia miejsca do uzupełnienia: „[opisz…]” i „…”. */
+function Placeholders({ text }: { text: string }) {
+  const parts = text.split(/(\[[^\]]{2,80}\]|…)/)
+  if (parts.length === 1) return <>{text}</>
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^\[.*\]$|^…$/.test(part) ? (
+          <span key={i} className="rounded bg-amber-100 px-1 font-sans text-[0.9em] font-medium text-amber-900 ring-1 ring-amber-200" title="Do uzupełnienia">
+            {part === '…' ? 'do uzupełnienia' : part.slice(1, -1)}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  )
+}
+
 /** Treść zapisu z ustępami („1.”, „a)”) z wcięciem wiszącym i zakreśleniami komentarzy. */
 export function ClauseBody({ text, marks = [], activeId = null, onActivate = () => {}, className }: { text: string; marks?: NumberedFinding[]; activeId?: string | null; onActivate?: (id: string) => void; className?: string }) {
   const lines = splitClauseLines(text)
@@ -108,7 +135,7 @@ export function ClauseBody({ text, marks = [], activeId = null, onActivate = () 
         const lineMarks = marks
           .filter((m) => m.at >= l.offset && m.f.excerpt && m.at + m.f.excerpt.length <= l.offset + l.length)
           .map((m) => ({ ...m, at: m.at - l.offset }))
-        const body = lineMarks.length ? <HighlightedText text={l.content} marks={lineMarks} activeId={activeId} onActivate={onActivate} /> : l.content
+        const body = lineMarks.length ? <HighlightedText text={l.content} marks={lineMarks} activeId={activeId} onActivate={onActivate} /> : <Placeholders text={l.content} />
         if (l.kind === 'para') return <p key={i}>{body}</p>
         return (
           <div key={i} className={cx('grid gap-x-2', l.kind === 'num' ? 'grid-cols-[1.9rem_1fr]' : 'ml-[1.9rem] grid-cols-[1.4rem_1fr]')}>
