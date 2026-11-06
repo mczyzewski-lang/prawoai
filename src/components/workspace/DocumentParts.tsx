@@ -75,7 +75,7 @@ function PartyCard({ p, index, isViewer, onEdit }: { p: Party; index: number; is
           {rows.map((r) => (
             <div key={r.label} className="grid grid-cols-[110px_1fr] gap-2">
               <dt className="text-xs text-slate-500">{r.label}</dt>
-              <dd className="min-w-0 text-slate-800 [overflow-wrap:anywhere]">{r.value}</dd>
+              <dd className="min-w-0 whitespace-pre-line text-slate-800 [overflow-wrap:anywhere]">{r.value}</dd>
             </div>
           ))}
         </dl>

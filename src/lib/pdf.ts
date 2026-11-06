@@ -224,7 +224,7 @@ export async function downloadContractPdf(c: Contract): Promise<void> {
     const valFont = `400 9px ${SANS}`
     const cols = parties.map((p, i) => {
       const name = wrap(p.name || '—', nameFont, inner)
-      const rows = partyRows(p).map((r) => ({ label: r.label, lines: wrap(r.value, valFont, inner - 70) }))
+      const rows = partyRows(p).map((r) => ({ label: r.label, lines: r.value.split('\n').flatMap((l) => wrap(l, valFont, inner - 70)) }))
       const h = pad + 10 + 6 + name.length * 16 + 6 + rows.reduce((a, r) => a + Math.max(1, r.lines.length) * 12 + 3, 0) + 16 + pad
       return { p, i, name, rows, h }
     })

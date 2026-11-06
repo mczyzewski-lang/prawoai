@@ -47,9 +47,60 @@ export function splitClauseLines(text: string): ClauseLine[] {
   return out
 }
 
+/**
+ * Porządkuje adres do postaci „ulica nr\nkod miasto”, np.
+ * „ul. Snopowa 9 Poznań 61-312” → „ul. Snopowa 9\n61-312 Poznań”.
+ * Gdy nie rozpozna kodu pocztowego – zwraca tekst bez zmian (tylko oczyszczony).
+ */
+export function formatAddress(raw: string): string {
+  const s = raw.replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').replace(/^[,\s]+|[,\s]+$/g, '')
+  const m = s.match(/(?<!\d)(\d{2})\s?[-–]\s?(\d{3})(?!\d)/)
+  if (!m || m.index === undefined) {
+    const parts = s.split(', ')
+    return parts.length > 1 && !/\d/.test(parts[parts.length - 1]) ? `${parts.slice(0, -1).join(', ')}\n${parts[parts.length - 1]}` : s
+  }
+  const code = `${m[1]}-${m[2]}`
+  const before = s.slice(0, m.index).replace(/[,\s]+$/, '')
+  const after = s.slice(m.index + m[0].length).replace(/^[,\s]+/, '')
+  let street = before
+  let city = ''
+  if (after) {
+    // „…, 60-433 Poznań” albo „60-433 Poznań, ul. …”
+    const [first, ...rest] = after.split(', ')
+    if (/\d/.test(first) && before) {
+      // „Zielona Góra 65-001, ul. Wiejska 3” – miasto przed kodem, ulica po nim
+      if (!/\d/.test(before)) [city, street] = [before, after]
+      else street = [before, after].join(', ')
+    } else {
+      city = first
+      street = [before, ...rest].filter(Boolean).join(', ')
+    }
+  }
+  if (!city && street) {
+    // miasto na końcu części przed kodem: „ul. Snopowa 9 Poznań” / „ul. Snopowa 9, Poznań”
+    const parts = street.split(', ')
+    const last = parts[parts.length - 1]
+    if (parts.length > 1 && !/\d/.test(last)) {
+      city = last
+      street = parts.slice(0, -1).join(', ')
+    } else {
+      const t = last.split(' ')
+      let i = t.length
+      while (i > 0 && !/\d/.test(t[i - 1])) i--
+      if (i > 0 && i < t.length) {
+        city = t.slice(i).join(' ')
+        parts[parts.length - 1] = t.slice(0, i).join(' ')
+        street = parts.join(', ')
+      }
+    }
+  }
+  const town = [code, city].filter(Boolean).join(' ')
+  return street ? `${street}\n${town}` : town
+}
+
 export function partyRows(p: Party): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
-  if (p.address) rows.push({ label: p.kind === 'firma' ? 'Siedziba / adres' : 'Adres', value: p.address })
+  if (p.address) rows.push({ label: p.kind === 'firma' ? 'Siedziba / adres' : 'Adres', value: formatAddress(p.address) })
   if (p.idNumber) rows.push({ label: p.kind === 'firma' ? 'NIP / KRS' : 'PESEL', value: p.idNumber })
   if (p.kind === 'firma' && p.representative) rows.push({ label: 'Reprezentacja', value: p.representative })
   if (p.email) rows.push({ label: 'E-mail', value: p.email })
