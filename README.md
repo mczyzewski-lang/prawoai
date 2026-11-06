@@ -71,7 +71,7 @@ Analiza w sekcji **Analizuj umowę** korzysta z modelu OpenAI, jeśli serwer ma 
 - Uwagi są przypinane do zapisów, a „Akceptuj” podmienia dokładnie zacytowany fragment (lub tworzy propozycję dla drugiej strony, jeśli umowa jest już udostępniona).
 - Bez klucza, albo po wybraniu „Użyj analizy podstawowej” przy błędzie, działa dotychczasowa analiza regułowa (`src/lib/analyzer.ts`). Panel analizy zawsze pokazuje, kto wykonał ocenę.
 
-Analiza korzysta też z wyszukiwania w internecie (narzędzie `web_search` w OpenAI), aby sprawdzić parametry i warunki gwarancji produktów wymienionych w umowie – źródła są pokazywane przy punktach „Do sprawdzenia”. Wyłączysz je zmienną `OPENAI_WEB_SEARCH=0`.
+Wyszukiwanie w internecie (narzędzie `web_search` w OpenAI, np. dane producentów urządzeń z umowy) jest domyślnie wyłączone – włącza je `OPENAI_WEB_SEARCH=1`. Liczba uwag zależy od umowy (bez sztucznego minimum); uwagi są posortowane od najważniejszych.
 
 Zmienne (`.env`): `OPENAI_API_KEY`, `OPENAI_MODEL` (domyślnie `gpt-5.5`), `OPENAI_REASONING_EFFORT` (`low`/`medium`/`high`), `API_PORT` (domyślnie 8787). Analiza przykładowej umowy trwa zwykle 40–60 s.
 

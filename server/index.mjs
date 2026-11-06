@@ -64,11 +64,11 @@ Zasady:
 - Opierasz się wyłącznie na treści dokumentu. Nie wymyślaj faktów, kwot ani dat.
 - NIE powołuj się na numery artykułów, nazwy ustaw, orzeczenia ani inne źródła. Jeśli coś może wymagać szczególnej formy lub regulacji, napisz ogólnie, że warto to sprawdzić z prawnikiem.
 - Pisz po polsku, prostym, konkretnym językiem, zwracając się do użytkownika na „Ty”.
-- Podaj od 10 do 18 uwag, posortowanych od najistotniejszej. Lepiej zgłosić o jedną uwagę za dużo niż przeoczyć coś, co uderza w portfel lub bezpieczeństwo użytkownika.
-- OBOWIĄZKOWO oceń harmonogram płatności z perspektywy użytkownika: ile procent i ile złotych płaci przed wykonaniem/odbiorem (np. „60% = 26 592 zł przed montażem”), czy płatności są powiązane z etapami (dostawa, uruchomienie, odbiór), czy płatność końcowa zależy od odbioru bez wad. Jeśli przedpłata jest wysoka lub nie ma transz – zaproponuj konkretny podział (np. 30% przy podpisaniu / 40% po dostawie / 30% po odbiorze) w suggestion.
-- Sprawdź też zawsze (jeśli dotyczy): gwarancję i rękojmię (rozdzielenie gwarancji producenta i wykonawcy, okresy, czas reakcji serwisu), odbiór (termin, kryteria, protokół, prawo odmowy przy wadach), kompletność zakresu (czy wszystkie prace i materiały są wymienione, czy grożą dopłaty), konsekwencje opóźnień (kary, odstąpienie, zwrot zaliczki), cenę (netto/brutto, VAT, co obejmuje), obowiązki nałożone na użytkownika (np. nadzór, przygotowanie miejsca), aktualność dat i danych.
+- Liczba uwag ma wynikać z umowy, a nie z normy: dobra, wyważona umowa może mieć 2–3 uwagi, słaba – kilkanaście. Nie dopisuj uwag na siłę i nie pomijaj niczego, co realnie uderza w pieniądze, ryzyko lub wygodę użytkownika. Sortuj od najistotniejszej.
+- ZAWSZE przeanalizuj harmonogram płatności z perspektywy użytkownika (uwagę zgłoś tylko, jeśli jest powód): ile procent i ile złotych płaci przed wykonaniem/odbiorem (np. „60% = 26 592 zł przed montażem”), czy płatności są powiązane z etapami (dostawa, uruchomienie, odbiór), czy płatność końcowa zależy od odbioru bez wad. Jeśli przedpłata jest wysoka lub nie ma transz – zaproponuj konkretny podział (np. 30% przy podpisaniu / 40% po dostawie / 30% po odbiorze) w suggestion.
+- Sprawdź też (jeśli dotyczy danej umowy): gwarancję i rękojmię (rozdzielenie gwarancji producenta i wykonawcy, okresy, czas reakcji serwisu), odbiór (termin, kryteria, protokół, prawo odmowy przy wadach), kompletność zakresu (czy wszystkie prace i materiały są wymienione, czy grożą dopłaty), konsekwencje opóźnień (kary, odstąpienie, zwrot zaliczki), cenę (netto/brutto, VAT, co obejmuje), obowiązki nałożone na użytkownika (np. nadzór, przygotowanie miejsca), aktualność dat i danych.
 - Każda uwaga musi zawierać konkretną rekomendację w suggestion (gotowe brzmienie zapisu) – nie ogólnik „warto doprecyzować”.
-- priority: "najważniejsze" – tylko sprawy, które realnie wpływają na pieniądze, ryzyko lub możliwość wyjścia z umowy i o które naprawdę warto negocjować (zwykle 3–7 uwag, importance 4–5); "kosmetyka" – doprecyzowania, usprawnienia i sprawy drugorzędne, które dobrze poprawić, ale nie warto o nie toczyć sporu (importance 1–3).
+- priority: "najważniejsze" – TYLKO sprawy kluczowe, o które naprawdę warto walczyć w negocjacjach, bo realnie wpływają na pieniądze, ryzyko lub możliwość wyjścia z umowy (zwykle 2–5 uwag, nigdy wszystkie; importance 4–5). Pozostałe uwagi oznacz jako "kosmetyka" (importance 1–3) – to rzeczy, które dobrze poprawić, ale bez nich umowę da się bezpiecznie podpisać. Kolejność: najpierw najważniejsze od najistotniejszej, potem kosmetyka.
 - importance: 1–5 (5 = krytyczne dla użytkownika, 1 = drobiazg).
 - aspect: "finansowe" | "biznesowe" | "operacyjne" | "prawne".
 - impact: 1–2 zdania „co to oznacza dla Ciebie” – konkretny skutek praktyczny dla użytkownika (np. ile i kiedy może stracić, na co się naraża).
@@ -81,8 +81,8 @@ Zasady:
 - summary: 2–4 zdania: czego dotyczy umowa (strony, przedmiot, kwota) i ogólna ocena z perspektywy użytkownika.
 - verdict: jedno–dwa zdania szczerej oceny, np. „Umowa jest poprawna, ale za słabo zabezpiecza Cię jako inwestora – największe problemy to przedpłata, gwarancja i odbiór”.
 - priorities: 3 najważniejsze sprawy, o które warto zawalczyć, każda jako krótkie zdanie z konkretem.
-- checks: 4–8 spraw do sprawdzenia lub potwierdzenia przed podpisaniem, które NIE są zmianą konkretnego zapisu (np. „Poproś o obliczenie zapotrzebowania na ciepło”, „Potwierdź status autoryzowanego instalatora”); title + detail (2–4 zdania, konkretnie, z liczbami jeśli je znasz) + source (adres strony źródła, jeśli korzystałeś z wyszukiwania; inaczej pusty tekst).
-- Jeśli umowa wymienia konkretne urządzenia, modele lub produkty (np. symbol pompy ciepła, model samochodu), SPRAWDŹ w internecie ich kluczowe parametry i warunki gwarancji producenta oraz – jeśli użytkownik podał w kontekście inny model – różnice między nimi, i uwzględnij to w checks z podaniem źródła. Możesz użyć wyszukiwania w internecie, aby sprawdzić dane produktów i usług wymienionych w umowie (np. parametry urządzeń, warunki gwarancji producenta, różnice między modelami) – tylko w źródłach producenta lub instytucji. Nie wyszukuj i nie cytuj przepisów ani orzeczeń. W tekstach uwag nie wstawiaj linków.
+- checks: 0–6 spraw do sprawdzenia lub potwierdzenia przed podpisaniem (tylko jeśli naprawdę są potrzebne), które NIE są zmianą konkretnego zapisu (np. „Poproś o obliczenie zapotrzebowania na ciepło”, „Potwierdź status autoryzowanego instalatora”); title + detail (2–4 zdania, konkretnie, z liczbami jeśli je znasz) + source (zawsze pusty tekst).
+- Opieraj się na treści umowy, kontekście od użytkownika i ogólnej wiedzy branżowej; nie cytuj przepisów ani orzeczeń.
 - negotiationMessage: gotowa, uprzejma i rzeczowa wiadomość od użytkownika do drugiej strony (zwracaj się „Dzień dobry,”), z ponumerowaną listą proponowanych zmian i próśb (najważniejsze najpierw, każda w 1–2 zdaniach, z konkretnymi wartościami), zakończona zdaniem o gotowości do finalizacji. Bez podpisu imieniem.`
 
 const str = { type: 'string' }
@@ -191,7 +191,8 @@ async function analyze(body) {
     ],
     text: { format: { type: 'json_schema', name: 'contract_analysis', strict: true, schema: SCHEMA } },
   }
-  if (process.env.OPENAI_WEB_SEARCH !== '0') payload.tools = [{ type: 'web_search' }]
+  // Wyszukiwanie w internecie – domyślnie wyłączone (OPENAI_WEB_SEARCH=1 włącza).
+  if (process.env.OPENAI_WEB_SEARCH === '1') payload.tools = [{ type: 'web_search' }]
   return callModel(payload, process.env.OPENAI_REASONING_EFFORT || 'medium')
 }
 
