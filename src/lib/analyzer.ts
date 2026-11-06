@@ -443,6 +443,10 @@ export function analyzeContract(text: string, clauses: Clause[], sourceName: str
       findings.push({
         id: uid('f'),
         clauseId: null,
+        insertAfterClauseId: (() => {
+          const finalIdx = clauses.findIndex((x) => /końcow/i.test(x.title))
+          return (finalIdx > 0 ? clauses[finalIdx - 1] : clauses[clauses.length - 1])?.id
+        })(),
         severity: miss.severity,
         category: 'brak',
         title: miss.title,

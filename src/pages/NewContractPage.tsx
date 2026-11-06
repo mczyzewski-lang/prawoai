@@ -167,9 +167,35 @@ export default function NewContractPage() {
 
   return (
     <div>
-      <Header onReset={data.messages.length ? reset : undefined} />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="flex min-h-[60dvh] flex-col rounded-3xl bg-white ring-1 ring-slate-200" aria-label="Rozmowa">
+      <div className="mx-auto max-w-3xl">
+        <Header onReset={data.messages.length ? reset : undefined} />
+        {data.messages.length > 0 && (
+          <div className="sticky top-16 z-20 -mx-4 mb-3 bg-sand-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0">
+            <div className="rounded-2xl bg-white ring-1 ring-slate-200">
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <button type="button" onClick={() => setSummaryOpen((o) => !o)} aria-expanded={summaryOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm">
+                  <ListChecks className="size-4 shrink-0 text-brand-700" aria-hidden />
+                  <span className="truncate font-medium text-ink-900">{tpl ? s.title || tpl.name : 'Twój projekt'}</span>
+                  <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">· {progress(s)}/5 gotowe</span>
+                  <ChevronDown className={cx('size-4 shrink-0 text-slate-500 transition', summaryOpen && 'rotate-180')} aria-hidden />
+                </button>
+                <Button size="sm" variant="accent" disabled={!canCreate} onClick={create} icon={<FilePlus2 className="size-4" />}>
+                  <span className="hidden sm:inline">Utwórz projekt</span>
+                  <span className="sm:hidden">Utwórz</span>
+                </Button>
+              </div>
+              <div className="h-1 overflow-hidden rounded-b-2xl bg-slate-100">
+                <div className="h-full bg-brand-500 transition-all" style={{ width: `${(progress(s) / 5) * 100}%` }} />
+              </div>
+              {summaryOpen && (
+                <div className="max-h-[60dvh] overflow-y-auto border-t border-slate-100 px-4 pb-4">
+                  <Summary s={s} canCreate={canCreate} onCreate={create} onWizard={() => navigate(seedWizard(s))} compact />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <section className="flex min-h-[calc(100dvh-15rem)] flex-col rounded-3xl bg-white ring-1 ring-slate-200" aria-label="Rozmowa">
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite">
             {data.messages.length === 0 && !thinking && <Intro onPick={(p) => send(p)} hasSaved={!!app.profile.ownParty} savedName={app.profile.ownParty?.name} />}
             {data.messages.map((m, i) => (
@@ -222,23 +248,6 @@ export default function NewContractPage() {
             <div ref={endRef} />
           </div>
 
-          {/* Projekt na telefonie – zwijany */}
-          {data.messages.length > 0 && (
-            <div className="border-t border-slate-100 lg:hidden">
-              <button type="button" onClick={() => setSummaryOpen((o) => !o)} aria-expanded={summaryOpen} className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium text-ink-900">
-                <span className="flex items-center gap-2">
-                  <ListChecks className="size-4 text-brand-700" aria-hidden /> Twój projekt {tpl ? `· ${tpl.name}` : ''}
-                </span>
-                <ChevronDown className={cx('size-4 transition', summaryOpen && 'rotate-180')} aria-hidden />
-              </button>
-              {summaryOpen && (
-                <div className="px-4 pb-3">
-                  <Summary s={s} canCreate={canCreate} onCreate={create} onWizard={() => navigate(seedWizard(s))} compact />
-                </div>
-              )}
-            </div>
-          )}
-
           <div className="safe-bottom sticky bottom-16 rounded-b-3xl border-t border-slate-100 bg-white p-3 sm:p-4 md:bottom-0">
             {error && (
               <Alert tone="error" className="mb-2" onClose={() => setError(null)}>
@@ -275,14 +284,14 @@ export default function NewContractPage() {
           </div>
         </section>
 
-        <aside className="hidden lg:block" aria-label="Twój projekt">
-          <div className="sticky top-20">
-            <Summary s={s} canCreate={canCreate} onCreate={create} onWizard={() => navigate(seedWizard(s))} />
-          </div>
-        </aside>
       </div>
     </div>
   )
+}
+
+function progress(s: IntakeState): number {
+  const tpl = getTemplate(s.templateId)
+  return [!!tpl, !!s.myRole, !!s.partyA.name && !!s.partyB.name, !!s.answers.scope, !!s.answers.amount || (!!tpl && !tpl.fields.includes('amount'))].filter(Boolean).length
 }
 
 function Header({ onReset }: { onReset?: () => void }) {

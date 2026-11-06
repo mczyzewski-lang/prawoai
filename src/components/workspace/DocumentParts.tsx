@@ -1,4 +1,4 @@
-import { Building2, Check, User } from 'lucide-react'
+import { Building2, Check, PenLine, User } from 'lucide-react'
 import type { Contract, Party, PartyId } from '../../types'
 import { cx, formatDate, formatDateTime } from '../../lib/utils'
 import { documentKind, partyRows, splitClauseLines, stageLabel } from '../../lib/documentFormat'
@@ -123,25 +123,45 @@ export function ClauseHeading({ index, title, className }: { index: number; titl
   )
 }
 
-export function SignatureStrip({ c }: { c: Contract }) {
+export function SignatureStrip({ c, viewer, onSign, blockedReason }: { c: Contract; viewer?: PartyId; onSign?: () => void; blockedReason?: string | null }) {
   return (
-    <section className="border-t border-slate-200/70 px-5 py-8 sm:px-10" aria-label="Podpisy stron">
+    <section id="podpisy" className="scroll-mt-24 border-t border-slate-200/70 px-5 py-8 sm:px-10" aria-label="Podpisy stron">
       <p className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Podpisy stron</p>
       <div className="mt-6 grid gap-8 sm:grid-cols-2">
         {c.parties.map((p) => {
           const sig = c.signatures.find((s) => s.partyId === p.id)
+          const canSignHere = !sig && p.id === viewer && !!onSign && c.stage !== 'signed'
           return (
             <div key={p.id}>
               <div className="flex h-20 items-end justify-center">
-                {sig ? <img src={sig.dataUrl} alt={`Podpis: ${sig.signerName}`} className="max-h-20 object-contain" /> : <span className="pb-2 font-serif text-sm italic text-slate-300">miejsce na podpis</span>}
+                {sig ? (
+                  <img src={sig.dataUrl} alt={`Podpis: ${sig.signerName}`} className="max-h-20 object-contain" />
+                ) : canSignHere ? (
+                  <button
+                    type="button"
+                    onClick={onSign}
+                    disabled={!!blockedReason}
+                    className="mb-2 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    <PenLine className="size-4" aria-hidden /> Podpisz umowę
+                  </button>
+                ) : (
+                  <span className="pb-2 font-serif text-sm italic text-slate-300">miejsce na podpis</span>
+                )}
               </div>
               <div className="border-t border-slate-400 pt-2 text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700">{p.role}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700">
+                  {p.role}
+                  {p.id === viewer && ' · Ty'}
+                </p>
                 <p className="font-serif text-[15px] text-ink-900">{p.name}</p>
                 {sig ? (
-                  <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-500">
+                  <p className="mt-0.5 inline-flex flex-wrap items-center justify-center gap-1 text-xs text-slate-500">
                     <Check className="size-3 text-brand-600" aria-hidden /> {sig.signerName} · {formatDateTime(sig.signedAt)}
+                    {sig.method === 'sms' && <span className="block w-full">potwierdzony kodem SMS {sig.phone}</span>}
                   </p>
+                ) : canSignHere && blockedReason ? (
+                  <p className="mt-0.5 text-xs text-amber-700">{blockedReason}</p>
                 ) : (
                   <p className="mt-0.5 text-xs text-slate-400">oczekuje na podpis</p>
                 )}

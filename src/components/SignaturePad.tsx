@@ -143,7 +143,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, { onChange?: (empty: 
 /** Render podpisu wpisanego z klawiatury (alternatywa dostępnościowa). */
 export async function typedSignatureDataUrl(name: string): Promise<string> {
   try {
-    await document.fonts.load('600 48px Caveat')
+    await document.fonts.load('600 48px Caveat', name)
   } catch {
     /* fallback */
   }

@@ -11,6 +11,8 @@ import type { AnalysisResult, Clause, Contract, PartyId } from '../types'
 import { cx, nowIso, sleep, uid, wordCount } from '../lib/utils'
 
 type Mode = 'file' | 'paste'
+export const HANDOFF_KEY = 'prawoai:analyze-input'
+
 const stagesFor = (ai: boolean) => ['Odczytywanie dokumentu', 'Dzielenie na zapisy', ai ? 'Ocena zapisów przez model AI (to może potrwać do 2 minut)' : 'Sprawdzanie ryzyk i braków', 'Przygotowanie podsumowania']
 
 export default function AnalyzePage() {
@@ -59,17 +61,34 @@ export default function AnalyzePage() {
   }
 
   /** Krok 1: podział na zapisy i rozpoznanie stron, potem pytanie o perspektywę. */
-  const start = () => {
+  const start = (input = text) => {
     setError(null)
     setAiError(null)
-    if (wordCount(text) < 30) {
+    if (wordCount(input) < 30) {
       setError('Tekst jest za krótki, aby go przeanalizować. Wklej całą umowę (co najmniej kilka zapisów).')
       return
     }
-    const clauses = parseClauses(text)
-    const parties = analyzeContract(text, clauses, '').parties
+    const clauses = parseClauses(input)
+    const parties = analyzeContract(input, clauses, '').parties
     setPrep({ clauses, parties })
   }
+
+  // Dokument przekazany ze strony głównej – od razu pytanie o perspektywę.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(HANDOFF_KEY)
+      if (!raw) return
+      sessionStorage.removeItem(HANDOFF_KEY)
+      const h = JSON.parse(raw) as { text: string; fileName: string | null }
+      setText(h.text)
+      setFileName(h.fileName)
+      setMode(h.fileName ? 'file' : 'paste')
+      start(h.text)
+    } catch {
+      /* brak przekazanego dokumentu */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /** Krok 2: ocena z perspektywy wybranej strony. */
   const analyzeAs = async (myParty: PartyId | null, forceRules = false) => {
@@ -330,7 +349,7 @@ export default function AnalyzePage() {
               <Lock className="size-3.5 shrink-0" aria-hidden />
               {ai?.ai ? 'Plik jest odczytywany na Twoim urządzeniu, a tekst umowy zostanie przesłany do oceny przez model AI (OpenAI).' : 'Plik jest odczytywany na Twoim urządzeniu.'}
             </p>
-            <Button variant="accent" size="lg" onClick={start} disabled={!text.trim() || reading} icon={<Sparkles className="size-4" />}>
+            <Button variant="accent" size="lg" onClick={() => start()} disabled={!text.trim() || reading} icon={<Sparkles className="size-4" />}>
               Analizuj umowę
             </Button>
           </div>

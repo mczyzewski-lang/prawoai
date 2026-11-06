@@ -65,7 +65,11 @@ export interface Signature {
   signerName: string
   dataUrl: string
   signedAt: string
-  method: 'drawn' | 'typed'
+  method: 'drawn' | 'typed' | 'sms'
+  /** Numer telefonu (zamaskowany) – przy podpisie kodem SMS. */
+  phone?: string
+  /** Wersja dokumentu, którą podpisano. */
+  version?: number
 }
 
 export type FindingSeverity = 'high' | 'medium' | 'low'
@@ -75,6 +79,8 @@ export interface Finding {
   id: string
   /** null = brakujące postanowienie (nie jest przypięte do istniejącego zapisu). */
   clauseId: string | null
+  /** Brakujące postanowienie: po którym zapisie je wstawić. */
+  insertAfterClauseId?: string
   severity: FindingSeverity
   category: 'ryzyko' | 'niejasność' | 'brak' | 'termin' | 'płatność'
   title: string

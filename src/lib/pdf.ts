@@ -376,7 +376,7 @@ export async function downloadContractPdf(c: Contract): Promise<void> {
         center(p.name.slice(0, 50), `400 10px ${SERIF}`, C.ink, lineY + 26)
         if (s) {
           center(`${s.signerName} · ${formatDateTime(s.signedAt)}`, `400 7.5px ${SANS}`, C.muted, lineY + 38)
-          center(s.method === 'typed' ? 'podpis wpisany na ekranie' : 'podpis odręczny na ekranie', `400 7px ${SANS}`, C.faint, lineY + 48)
+          center(s.method === 'sms' ? `podpis potwierdzony kodem SMS ${s.phone ?? ''}` : s.method === 'typed' ? 'podpis wpisany na ekranie' : 'podpis odręczny na ekranie', `400 7px ${SANS}`, C.faint, lineY + 48)
         }
       })
     },

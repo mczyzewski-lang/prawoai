@@ -19,9 +19,11 @@ export function numberFindings(c: Contract): NumberedFinding[] {
   const items = c.analysis.findings.map((f) => {
     const cl = f.clauseId ? c.clauses.find((x) => x.id === f.clauseId) : undefined
     const at = cl && f.excerpt ? cl.text.indexOf(f.excerpt) : -1
-    return { f, at, ci: f.clauseId ? (order.get(f.clauseId) ?? 9999) : 10000 }
+    const anchor = f.clauseId ?? f.insertAfterClauseId
+    const ci = anchor ? (order.get(anchor) ?? 9999) + (f.clauseId ? 0 : 0.5) : 10000
+    return { f, at, sortAt: f.clauseId ? at : 1e9, ci }
   })
-  items.sort((a, b) => a.ci - b.ci || a.at - b.at)
+  items.sort((a, b) => a.ci - b.ci || a.sortAt - b.sortAt)
   return items.map((x, i) => ({ f: x.f, n: i + 1, at: x.at }))
 }
 

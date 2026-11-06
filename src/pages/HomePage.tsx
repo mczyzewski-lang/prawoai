@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowRight, ArrowUp, ChevronRight, EyeOff, FileSearch, FileText, FolderOpen, Handshake, Link2, MessagesSquare, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowRight, ArrowUp, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Upload } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { ButtonLink, EmptyState, StatusBadge } from '../components/ui'
 import { displayStatus, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
 import { QUICK_STARTS } from '../lib/intake'
+import { extractText, ExtractError } from '../lib/extract'
+import { HANDOFF_KEY } from './AnalyzePage'
 import type { Contract } from '../types'
 
 export default function HomePage() {
@@ -18,65 +20,75 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      {/* 1. Stwórz umowę – główne pole */}
-      <section aria-labelledby="create" className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-900 via-ink-900 to-ink-800 px-5 py-7 text-white shadow-lg sm:px-10 sm:py-10">
-        <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-brand-500/20 blur-3xl" aria-hidden />
-        <p className="relative text-sm font-medium text-brand-300">Dzień dobry, {firstName}</p>
-        <h1 id="create" className="relative mt-1 text-[28px] font-semibold leading-tight tracking-tight sm:text-4xl">
-          Stwórz umowę
-        </h1>
-        <p className="relative mt-2 max-w-xl text-[15px] leading-relaxed text-white/75">Opisz własnymi słowami, czego dotyczy i z kim ją zawierasz. Dopytamy o brakujące dane i przygotujemy projekt do wysłania drugiej stronie.</p>
-
-        <form
-          className="relative mt-6 rounded-2xl bg-white p-2 shadow-xl ring-1 ring-white/10"
-          onSubmit={(e) => {
-            e.preventDefault()
-            start(prompt)
-          }}
-        >
-          <label htmlFor="home-prompt" className="sr-only">
-            Opisz umowę, którą chcesz przygotować
-          </label>
-          <textarea
-            id="home-prompt"
-            rows={3}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+      <section aria-label="Główne akcje">
+        <p className="text-sm font-medium text-brand-700">Dzień dobry, {firstName}</p>
+        <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-tight text-ink-900 sm:text-3xl">Co chcesz dziś zrobić?</h1>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {/* Stwórz umowę */}
+          <div className="relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-ink-900 to-ink-800 p-5 text-white shadow-lg sm:p-6">
+            <div className="pointer-events-none absolute -right-20 -top-20 size-60 rounded-full bg-brand-500/20 blur-3xl" aria-hidden />
+            <div className="relative flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-xl bg-white/10 text-brand-300" aria-hidden>
+                <FilePlus2 className="size-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold">Stwórz umowę</h2>
+                <p className="text-sm text-white/70">Opisz ją własnymi słowami – dopytamy o szczegóły.</p>
+              </div>
+            </div>
+            <form
+              className="relative mt-4 flex-1 rounded-2xl bg-white p-2 shadow-xl"
+              onSubmit={(e) => {
                 e.preventDefault()
                 start(prompt)
-              }
-            }}
-            placeholder="Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł"
-            className="w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-[16px] sm:h-[4.5rem] text-slate-900 placeholder:text-slate-400 focus:outline-none"
-          />
-          <div className="flex items-center justify-between gap-2 px-1">
-            <span className="flex items-center gap-1.5 pl-2 text-xs text-slate-500">
-              <Sparkles className="size-3.5 text-brand-600" aria-hidden /> Asystent rozpozna rodzaj umowy i dane stron
-            </span>
-            <button type="submit" disabled={!prompt.trim()} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
-              Utwórz <ArrowUp className="size-4" aria-hidden />
-            </button>
+              }}
+            >
+              <label htmlFor="home-prompt" className="sr-only">
+                Opisz umowę, którą chcesz przygotować
+              </label>
+              <textarea
+                id="home-prompt"
+                rows={4}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    start(prompt)
+                  }
+                }}
+                placeholder="Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł"
+                className="w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-[16px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              />
+              <div className="flex justify-end px-1 pb-1">
+                <button type="submit" disabled={!prompt.trim()} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
+                  Rozpocznij <ArrowUp className="size-4" aria-hidden />
+                </button>
+              </div>
+            </form>
+            <div className="relative mt-4 flex flex-wrap gap-2">
+              {QUICK_STARTS.map((q) => (
+                <button key={q.label} type="button" onClick={() => start(q.prompt)} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/20">
+                  {q.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </form>
 
-        <div className="relative mt-4 flex flex-wrap gap-2">
-          {QUICK_STARTS.map((q) => (
-            <button key={q.label} type="button" onClick={() => start(q.prompt)} className="rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/20">
-              {q.label}
-            </button>
-          ))}
-          <Link to="/wzory" className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-brand-200 hover:text-white">
-            Wszystkie wzory <ArrowRight className="size-3.5" aria-hidden />
-          </Link>
+          {/* Przeanalizuj umowę */}
+          <AnalyzeCard />
         </div>
-      </section>
 
-      {/* 2. Pozostałe akcje */}
-      <section aria-label="Inne akcje" className="grid gap-3 sm:grid-cols-2">
-        <ActionCard to="/analiza" icon={FileSearch} title="Przeanalizuj umowę" text="Wgraj PDF lub DOCX – wskażemy, co jest dla Ciebie ryzykowne i co zmienić." />
-        <ActionCard to="/asystent" icon={MessagesSquare} title="Zapytaj asystenta AI" text="Opisz sprawę prawną. Pomożemy ustalić kolejne kroki i potrzebne dokumenty." />
+        <Link to="/asystent" className="group mt-4 flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 transition hover:ring-brand-300">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700" aria-hidden>
+            <MessagesSquare className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink-900">Zapytaj asystenta AI</span>
+            <span className="block text-sm text-slate-600">Opisz sprawę prawną – pomożemy ustalić kolejne kroki i potrzebne dokumenty.</span>
+          </span>
+          <ArrowRight className="size-5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600" aria-hidden />
+        </Link>
       </section>
 
       {/* 3. Wymaga Twojej uwagi */}
@@ -156,18 +168,119 @@ export default function HomePage() {
   )
 }
 
-function ActionCard({ to, icon: Icon, title, text }: { to: string; icon: typeof FileSearch; title: string; text: string }) {
+function AnalyzeCard() {
+  const navigate = useNavigate()
+  const [mode, setMode] = useState<'file' | 'paste'>('file')
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [drag, setDrag] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const go = (t: string, fileName: string | null) => {
+    try {
+      sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ text: t, fileName }))
+    } catch {
+      /* ignoruj */
+    }
+    navigate('/analiza')
+  }
+  const handleFile = async (f: File) => {
+    setError(null)
+    setBusy(true)
+    try {
+      go(await extractText(f), f.name)
+    } catch (e) {
+      setError(e instanceof ExtractError ? e.message : 'Nie udało się odczytać pliku.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <Link to={to} className="group flex items-center gap-4 rounded-2xl bg-white p-5 ring-1 ring-slate-200 transition hover:shadow-md hover:ring-brand-300">
-      <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-700" aria-hidden>
-        <Icon className="size-6" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold text-ink-900">{title}</span>
-        <span className="mt-0.5 block text-sm leading-relaxed text-slate-600">{text}</span>
-      </span>
-      <ArrowRight className="size-5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600" aria-hidden />
-    </Link>
+    <div className="flex flex-col rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-700" aria-hidden>
+          <FileSearch className="size-5" />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold text-ink-900">Przeanalizuj umowę</h2>
+          <p className="text-sm text-slate-600">Wskażemy ryzyka i podpowiemy, co zmienić.</p>
+        </div>
+      </div>
+      <div role="tablist" aria-label="Sposób dodania umowy" className="mt-4 flex w-fit gap-1 rounded-xl bg-slate-100 p-1 text-sm">
+        {(
+          [
+            ['file', 'Wgraj plik'],
+            ['paste', 'Wklej tekst'],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} role="tab" type="button" aria-selected={mode === id} onClick={() => setMode(id)} className={`rounded-lg px-3 py-1.5 font-medium ${mode === id ? 'bg-white text-ink-900 shadow-sm' : 'text-slate-600'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === 'file' ? (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDrag(true)
+          }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDrag(false)
+            const f = e.dataTransfer.files?.[0]
+            if (f) void handleFile(f)
+          }}
+          className={`mt-3 flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-8 text-center transition ${drag ? 'border-brand-500 bg-brand-50' : 'border-slate-300 bg-sand-50/60'}`}
+        >
+          {busy ? (
+            <p role="status" className="flex items-center gap-2 text-sm text-slate-600">
+              <Loader2 className="size-5 animate-spin text-brand-600" aria-hidden /> Odczytujemy plik…
+            </p>
+          ) : (
+            <>
+              <Upload className="size-7 text-brand-600" aria-hidden />
+              <p className="mt-2 font-medium text-ink-900">Przeciągnij umowę tutaj</p>
+              <p className="text-sm text-slate-500">PDF, DOCX lub TXT</p>
+              <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 rounded-xl bg-ink-900 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800">
+                Wybierz plik
+              </button>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md"
+                className="sr-only"
+                aria-label="Wybierz plik umowy"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) void handleFile(f)
+                  e.target.value = ''
+                }}
+              />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-1 flex-col">
+          <label htmlFor="home-paste" className="sr-only">
+            Treść umowy
+          </label>
+          <textarea id="home-paste" rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Wklej pełną treść umowy…" className="w-full flex-1 resize-none rounded-2xl border border-slate-300 p-3 font-serif text-[15px] leading-relaxed focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
+          <div className="mt-2 flex justify-end">
+            <button type="button" disabled={text.trim().split(/\s+/).length < 30} onClick={() => go(text, null)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-40">
+              Analizuj <ArrowRight className="size-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="mt-2 text-sm font-medium text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 

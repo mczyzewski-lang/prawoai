@@ -22,11 +22,12 @@ import {
 } from 'lucide-react'
 import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
 import { useStore } from '../../store/AppStore'
-import { acceptCurrentVersion, addComment, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
+import { acceptCurrentVersion, addComment, addSignature, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
 import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs } from '../ui'
 import { useToast } from '../Toast'
 import { ShareDialog } from '../ShareDialog'
+import { SignModal } from '../SignModal'
 import { FindingCard, PRIORITY_META, ProposalCard, priorityOf } from './Cards'
 import { matchesFilter, numberFindings, type FindingFilter, type NumberedFinding } from './Annotations'
 import { ProposalModal } from './ProposalModal'
@@ -65,6 +66,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [activeFinding, setActiveFinding] = useState<string | null>(null)
+  const [signOpen, setSignOpen] = useState(false)
   const [findingFilter, setFindingFilter] = useState<FindingFilter>('otwarte')
 
   const setPanel = (p: Panel) => {
@@ -258,7 +260,19 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                 {c.shareId ? 'Udostępnij' : 'Zaproś drugą stronę do negocjacji'}
               </Button>
             )}
-            {(c.stage === 'agreed' || isSigned) && (
+            {!isSigned && !c.signatures.some((s) => s.partyId === viewer) && (
+              <Button
+                variant={c.stage === 'agreed' ? 'accent' : 'secondary'}
+                icon={<FileSignature className="size-4" />}
+                onClick={() => {
+                  if (panel !== 'dokument' && !window.matchMedia('(min-width: 1024px)').matches) setPanel('dokument')
+                  setTimeout(() => document.getElementById('podpisy')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
+                }}
+              >
+                Podpisz
+              </Button>
+            )}
+            {isSigned && (
               <ButtonLink to={signPath} variant={isSigned ? 'secondary' : 'accent'} icon={<FileSignature className="size-4" />}>
                 {isSigned ? 'Podpisy' : 'Przejdź do podpisu'}
               </ButtonLink>
@@ -352,6 +366,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   onFinding={decideFinding_}
                   canAct={!isSigned}
                   marks={visibleFindings.filter((x) => x.f.clauseId === cl.id)}
+                  inserts={visibleFindings.filter((x) => !x.f.clauseId && (c.clauses.some((k) => k.id === x.f.insertAfterClauseId) ? x.f.insertAfterClauseId : c.clauses[c.clauses.length - 1]?.id) === cl.id)}
                   activeFinding={activeFinding}
                   onActivateFinding={(id) => activateFinding(id, 'mark')}
                   onActivateCard={(id) => activateFinding(id, 'card')}
@@ -359,20 +374,12 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                 />
               ))}
             </div>
-            {analysisDesktop && visibleFindings.some((x) => !x.f.clauseId) && (
-              <section className="hidden border-t border-dashed border-slate-300 px-10 py-6 lg:block" aria-label="Brakujące postanowienia">
-                <h3 className="font-serif text-[17px] font-semibold text-ink-900">Brakujące postanowienia</h3>
-                <p className="mt-1 text-sm text-slate-600">Tych zapisów nie ma w umowie, a warto je dodać. Akceptacja doda nowy paragraf.</p>
-                <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                  {visibleFindings
-                    .filter((x) => !x.f.clauseId)
-                    .map((x) => (
-                      <FindingCard key={x.f.id} f={x.f} number={x.n} shared={c.stage !== 'draft'} collapsible active={activeFinding === x.f.id} onActivate={() => activateFinding(x.f.id, 'card')} onDecide={(d, t) => decideFinding_(x.f.id, d, t)} />
-                    ))}
-                </div>
-              </section>
-            )}
-            <SignatureStrip c={c} />
+            <SignatureStrip
+              c={c}
+              viewer={viewer}
+              onSign={() => guard('Aby podpisać umowę, załóż bezpłatne konto.', () => setSignOpen(true))}
+              blockedReason={openProposals.length > 0 ? 'Najpierw rozstrzygnijcie otwarte propozycje zmian.' : null}
+            />
           </article>
         </div>
 
@@ -383,6 +390,19 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
       <ProposalModal open={!!proposalFor} onClose={() => setProposalFor(null)} clause={proposalFor?.clause ?? null} initialText={proposalFor?.text} directEdit={directEdit} onSubmit={submitChange} />
       {isOwner && <ShareDialog contract={c} open={shareOpen} onClose={() => setShareOpen(false)} />}
+      <SignModal
+        open={signOpen}
+        onClose={() => setSignOpen(false)}
+        c={c}
+        party={me}
+        defaultName={me.kind === 'firma' ? me.representative || viewerName : me.name || viewerName}
+        onSigned={(sig) => {
+          updateContract(c.id, (x) => addSignature(x, sig))
+          setSignOpen(false)
+          const otherSigned = c.signatures.some((s) => s.partyId !== viewer)
+          toast(otherSigned ? 'Umowa podpisana przez obie strony – możesz pobrać PDF' : 'Podpisano. Czekamy na podpis drugiej strony.')
+        }}
+      />
       {isOwner && (
         <Modal
           open={deleteOpen}
@@ -433,6 +453,7 @@ function ClauseBlock({
   onFinding,
   canAct,
   marks,
+  inserts,
   activeFinding,
   onActivateFinding,
   onActivateCard,
@@ -455,6 +476,8 @@ function ClauseBlock({
   canAct: boolean
   /** Widoczne komentarze z analizy przypięte do tego zapisu. */
   marks: NumberedFinding[]
+  /** Brakujące zapisy proponowane do wstawienia po tym zapisie. */
+  inserts: NumberedFinding[]
   activeFinding: string | null
   onActivateFinding: (id: string) => void
   onActivateCard: (id: string) => void
@@ -464,8 +487,10 @@ function ClauseBlock({
   const open = c.proposals.filter((p) => p.clauseId === clause.id && p.status === 'open')
   const comments = c.comments.filter((cm) => cm.clauseId === clause.id)
   const pending = marks.filter((m) => m.f.status === 'pending')
-  const hasKey = pending.some((m) => priorityOf(m.f) === 'najważniejsze')
-  const activeHere = marks.find((m) => m.f.id === activeFinding)
+  const pendingAll = [...marks, ...inserts].filter((m) => m.f.status === 'pending')
+  const hasKey = pendingAll.some((m) => priorityOf(m.f) === 'najważniejsze')
+  const activeHere = [...marks, ...inserts].find((m) => m.f.id === activeFinding)
+  const pendingInserts = inserts.filter((m) => m.f.status === 'pending')
   const shared = c.stage !== 'draft'
   const isParties = isPartiesClause(c, index)
   const generatedParties = partiesClauseIsGenerated(c, clause)
@@ -473,7 +498,7 @@ function ClauseBlock({
 
   return (
     <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected ? 'bg-brand-50/60' : 'hover:bg-white/60', marginMode && 'lg:pr-5')} aria-labelledby={`t-${clause.id}`}>
-      {pending.length > 0 && <span className={cx('absolute inset-y-4 left-0 w-1 rounded-r', hasKey ? PRIORITY_META.najważniejsze.bar : PRIORITY_META.kosmetyka.bar)} aria-hidden />}
+      {pendingAll.length > 0 && <span className={cx('absolute inset-y-4 left-0 w-1 rounded-r', hasKey ? PRIORITY_META.najważniejsze.bar : PRIORITY_META.kosmetyka.bar)} aria-hidden />}
       <div className={cx(marginMode && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_340px]')}>
         <div className="min-w-0">
           <button type="button" onClick={onSelect} aria-expanded={selected} className="group flex w-full items-start justify-between gap-3 text-left">
@@ -481,9 +506,9 @@ function ClauseBlock({
               <ClauseHeading index={index} title={clause.title} />
             </h3>
             <span className="flex shrink-0 flex-wrap justify-end gap-1">
-              {pending.length > 0 && (
+              {pendingAll.length > 0 && (
                 <span className={cx('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset', hasKey ? PRIORITY_META.najważniejsze.badge : PRIORITY_META.kosmetyka.badge, marginMode && 'lg:hidden')}>
-                  <MessageSquareText className="size-3" aria-hidden /> {pending.length}
+                  <MessageSquareText className="size-3" aria-hidden /> {pendingAll.length}
                 </span>
               )}
               {open.length > 0 && (
@@ -516,6 +541,26 @@ function ClauseBlock({
           ) : (
             <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} className="mt-3" />
           )}
+
+          {pendingInserts.map((m) => {
+            const pr = PRIORITY_META[priorityOf(m.f)]
+            return (
+              <button
+                key={m.f.id}
+                id={`fm-${m.f.id}`}
+                type="button"
+                onClick={() => onActivateFinding(m.f.id)}
+                aria-pressed={activeFinding === m.f.id}
+                className={cx('mt-4 flex w-full scroll-mt-32 items-start gap-2.5 rounded-xl border-2 border-dashed p-3 text-left transition', activeFinding === m.f.id ? 'border-ink-700 bg-white' : 'border-slate-300 bg-white/50 hover:border-slate-400')}
+              >
+                <span className={cx('grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold', pr.num)}>{m.n}</span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Brakujący zapis – proponujemy dodać tutaj</span>
+                  <span className="mt-0.5 block font-serif text-[15px] font-semibold text-ink-900">{m.f.excerpt || m.f.title}</span>
+                </span>
+              </button>
+            )
+          })}
 
           {/* Aktywny komentarz pod zapisem – na telefonie (i na desktopie bez marginesu) */}
           {activeHere && (
@@ -567,7 +612,7 @@ function ClauseBlock({
 
         {marginMode && (
           <div className="hidden space-y-2 lg:block" aria-label={`Komentarze do zapisu: ${clause.title}`}>
-            {marks.map((m) => (
+            {[...marks, ...inserts].map((m) => (
               <FindingCard
                 key={m.f.id}
                 f={m.f}

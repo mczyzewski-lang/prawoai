@@ -71,7 +71,7 @@ Zasady:
 - impact: 1–2 zdania „co to oznacza dla Ciebie” – konkretny skutek praktyczny dla użytkownika (np. ile i kiedy może stracić, na co się naraża).
 - explanation: 1–3 zdania wyjaśniające, co zapis mówi i na czym polega problem.
 - Dla uwagi dotyczącej istniejącego zapisu: clauseIndex = numer zapisu z nawiasu kwadratowego; excerpt = DOSŁOWNY cytat (fragment, najlepiej jedno zdanie lub jego część) skopiowany znak w znak z tego zapisu – dokładnie ten fragment, którego dotyczy uwaga; suggestion = nowe brzmienie, które zastąpi dokładnie ten cytat (gotowe do wstawienia).
-- Dla brakującego postanowienia: clauseIndex = -1, category = "brak", excerpt = krótki tytuł nowego zapisu, suggestion = pełna treść nowego zapisu.
+- Dla brakującego postanowienia: clauseIndex = -1, insertAfterIndex = numer zapisu, PO którym nowy zapis najlepiej wstawić (zwykle przed postanowieniami końcowymi lub obok zapisu o podobnej tematyce), category = "brak", excerpt = krótki tytuł nowego zapisu, suggestion = pełna treść nowego zapisu. Dla pozostałych uwag insertAfterIndex = -1.
 - category: "ryzyko" | "niejasność" | "brak" | "termin" | "płatność".
 - parties: name = sama nazwa strony (bez adresu); role = określenie użyte w umowie w mianowniku (np. „Klient”, „Agencja”); details = siedziba/adres, NIP/KRS/PESEL i reprezentacja – tylko jeśli są w tekście, inaczej pusty tekst.
 - obligations: najważniejsze obowiązki każdej ze stron (krótkie punkty). dates i payments: terminy i kwoty wynikające z umowy.
@@ -103,9 +103,10 @@ const SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['clauseIndex', 'priority', 'importance', 'aspect', 'category', 'title', 'explanation', 'impact', 'excerpt', 'suggestion'],
+        required: ['clauseIndex', 'insertAfterIndex', 'priority', 'importance', 'aspect', 'category', 'title', 'explanation', 'impact', 'excerpt', 'suggestion'],
         properties: {
           clauseIndex: { type: 'integer' },
+          insertAfterIndex: { type: 'integer' },
           priority: { type: 'string', enum: ['najważniejsze', 'kosmetyka'] },
           importance: { type: 'integer', enum: [1, 2, 3, 4, 5] },
           aspect: { type: 'string', enum: ['finansowe', 'biznesowe', 'operacyjne', 'prawne'] },

@@ -30,6 +30,7 @@ export function getAiStatus(): Promise<AiStatus> {
 
 interface RawFinding {
   clauseIndex: number
+  insertAfterIndex: number
   priority: FindingPriority
   importance: number
   aspect: FindingAspect
@@ -74,6 +75,12 @@ export interface Perspective {
   otherRole: string
 }
 
+/** Domyślne miejsce na nowy zapis: przed postanowieniami końcowymi. */
+export function defaultInsertAfter(clauses: Clause[]): string | undefined {
+  const finalIdx = clauses.findIndex((x) => /końcow/i.test(x.title))
+  return (finalIdx > 0 ? clauses[finalIdx - 1] : clauses[clauses.length - 1])?.id
+}
+
 export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective, context?: string): Promise<AnalysisResult> {
   let r: Response
   try {
@@ -98,6 +105,7 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
     findings.push({
       id: uid('f'),
       clauseId: clause?.id ?? null,
+      insertAfterClauseId: clause ? undefined : (clauses[f.insertAfterIndex]?.id ?? defaultInsertAfter(clauses)),
       severity: importance >= 4 ? 'high' : importance === 3 ? 'medium' : 'low',
       priority: f.priority,
       importance,

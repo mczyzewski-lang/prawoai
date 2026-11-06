@@ -40,6 +40,12 @@ Ten dokument opisuje, które elementy demo wymagają backendu, modelu AI, bezpie
 - Przed produkcją: integracja z dostawcą usług zaufania (podpis zaawansowany / kwalifikowany, pieczęć, znacznik czasu), weryfikacja tożsamości sygnatariuszy, ścieżka audytu (IP, urządzenie, zdarzenia), zamrożenie wersji dokumentu przed podpisem.
 - Do oceny prawnej: jaka forma podpisu jest wymagana lub zalecana dla poszczególnych typów umów oraz jak komunikować to użytkownikom.
 
+### Podpis kodem SMS (obecnie demonstracja)
+
+- Na komputerze podpis pod umową potwierdza się kodem SMS. W demo kod jest generowany w przeglądarce i pokazywany w podglądzie wiadomości – **nic nie jest wysyłane**.
+- Produkcyjnie: endpoint serwera generujący jednorazowy kod (np. 6 cyfr, ważny 5 min, limit prób), wysyłka przez bramkę SMS (np. SMSAPI), weryfikacja kodu po stronie serwera, zapis w ścieżce audytu (numer telefonu, czas, IP, wersja i skrót dokumentu). Klucz bramki SMS tylko po stronie serwera.
+- Podpis kodem SMS to forma potwierdzenia tożsamości i woli, ale nadal nie jest kwalifikowanym podpisem elektronicznym.
+
 ## 6. PDF
 
 - Obecnie PDF powstaje w przeglądarce jako obrazy stron (pełna obsługa polskich znaków). W produkcji zalecany jest PDF/A z warstwą tekstową generowany po stronie serwera, z osadzonymi fontami, metadanymi podpisów i pieczęcią czasu.

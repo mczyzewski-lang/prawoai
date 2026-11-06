@@ -207,7 +207,7 @@ function SignatureCard({ c, party, isMe, canSign, defaultName }: { c: Contract; 
           <p className="mt-2 text-sm text-slate-700">
             <span className="font-medium text-ink-900">{sig.signerName}</span> · {formatDateTime(sig.signedAt)}
           </p>
-          <p className="text-xs text-slate-500">{sig.method === 'drawn' ? 'Podpis odręczny na ekranie' : 'Podpis wpisany na ekranie'}</p>
+          <p className="text-xs text-slate-500">{sig.method === 'drawn' ? 'Podpis odręczny na ekranie' : sig.method === 'sms' ? `Podpis potwierdzony kodem SMS ${sig.phone ?? ''}` : 'Podpis wpisany na ekranie'}</p>
           {canSign && c.stage !== 'signed' && (
             <Button size="sm" variant="ghost" className="mt-2" icon={<Trash2 className="size-3.5" />} onClick={() => updateContract(c.id, (x) => removeSignature(x, party.id))}>
               Usuń i podpisz ponownie

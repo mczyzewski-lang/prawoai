@@ -10,7 +10,8 @@ function log(c: Contract, text: string, partyId?: PartyId): Contract {
 
 export function snapshot(c: Contract, authorName: string, note: string): Contract {
   const v = { id: uid('v'), number: c.versions.length + 1, createdAt: nowIso(), authorName, note, clauses: c.clauses.map((x) => ({ ...x })) }
-  return { ...c, versions: [...c.versions, v], acceptedBy: {} }
+  // Nowa treść unieważnia wcześniejsze akceptacje i podpisy.
+  return { ...c, versions: [...c.versions, v], acceptedBy: {}, signatures: [] }
 }
 
 export function currentVersion(c: Contract): number {
@@ -103,8 +104,12 @@ export function revokeAcceptance(c: Contract, partyId: PartyId, name: string): C
 }
 
 export function addSignature(c: Contract, sig: Signature): Contract {
-  const signatures = [...c.signatures.filter((s) => s.partyId !== sig.partyId), sig]
-  let next: Contract = log({ ...c, signatures }, `${sig.signerName} złożył(a) podpis`, sig.partyId)
+  const version = c.versions.length
+  const signatures = [...c.signatures.filter((s) => s.partyId !== sig.partyId), { ...sig, version }]
+  // Podpis oznacza też akceptację aktualnej wersji.
+  const acceptedBy = { ...c.acceptedBy, [sig.partyId]: { at: sig.signedAt, version } }
+  const via = sig.method === 'sms' ? ' (kod SMS)' : ''
+  let next: Contract = log({ ...c, signatures, acceptedBy }, `${sig.signerName} złożył(a) podpis${via}`, sig.partyId)
   if (signatures.length === 2) next = log({ ...next, stage: 'signed' }, 'Umowa została podpisana przez obie strony')
   return next
 }
@@ -144,8 +149,10 @@ export function decideFinding(c: Contract, findingId: string, decision: 'accept'
   } else {
     const newClause: Clause = { id: uid('cl'), title: f.excerpt ?? f.title, text }
     newClauseId = newClause.id
+    const afterIdx = f.insertAfterClauseId ? c.clauses.findIndex((x) => x.id === f.insertAfterClauseId) : -1
     const finalIdx = c.clauses.findIndex((x) => /końcow/i.test(x.title))
-    clauses = finalIdx >= 0 ? [...c.clauses.slice(0, finalIdx), newClause, ...c.clauses.slice(finalIdx)] : [...c.clauses, newClause]
+    const at = afterIdx >= 0 ? afterIdx + 1 : finalIdx >= 0 ? finalIdx : c.clauses.length
+    clauses = [...c.clauses.slice(0, at), newClause, ...c.clauses.slice(at)]
     if (!isDraft) {
       // Nowy zapis po udostępnieniu: dodajemy pusty zapis + propozycję treści.
       const withEmpty = { ...c, clauses: clauses.map((x) => (x.id === newClause.id ? { ...x, text: '(nowy zapis – oczekuje na akceptację)' } : x)) }
