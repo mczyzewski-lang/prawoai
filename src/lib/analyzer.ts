@@ -297,10 +297,10 @@ function toNominative(role: string): string {
     .join(' ')
 }
 
-function detectParties(text: string): { name: string; role: string }[] {
+function detectParties(text: string): { name: string; role: string; details?: string }[] {
   const head = text.slice(0, 2500)
   const re = /zwan[a-ząęółśżźćń]*\s+(?:dalej\s+|w\s+dalszej\s+części\s+umowy\s+)?[„"«]?([A-ZŁŚŻŹĆ][\wąęółśżźćńĄĘÓŁŚŻŹĆŃ]+(?:\s[A-ZŁŚŻŹĆ][\wąęółśżźćń]+)?)[”"»]?/g
-  const out: { name: string; role: string }[] = []
+  const out: { name: string; role: string; details?: string }[] = []
   let prevEnd = Math.max(0, head.search(/pomiędzy|między/i))
   for (const m of head.matchAll(re)) {
     const role = toNominative(m[1].trim())
@@ -315,7 +315,11 @@ function detectParties(text: string): { name: string; role: string }[] {
     const name = seg
       .split(/,|\s+z\s+siedzibą|\s+zamieszkał|\s+NIP|\s+PESEL|\s+KRS|\s+reprezentowan/i)[0]
       .trim()
-    out.push({ name: name.length >= 3 ? name.slice(0, 90) : 'Nie wskazano nazwy', role })
+    const details = seg
+      .slice(name.length)
+      .replace(/^[\s,]+|[\s,]+$/g, '')
+      .slice(0, 160)
+    out.push({ name: name.length >= 3 ? name.slice(0, 90) : 'Nie wskazano nazwy', role, details: details || undefined })
     prevEnd = idx + m[0].length
     if (out.length === 2) break
   }

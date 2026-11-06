@@ -55,6 +55,7 @@ Zasady:
 - Dla uwagi dotyczącej istniejącego zapisu: clauseIndex = numer zapisu z nawiasu kwadratowego; excerpt = DOSŁOWNY cytat (fragment, najlepiej jedno zdanie lub jego część) skopiowany znak w znak z tego zapisu – dokładnie ten fragment, którego dotyczy uwaga; suggestion = nowe brzmienie, które zastąpi dokładnie ten cytat (gotowe do wstawienia).
 - Dla brakującego postanowienia: clauseIndex = -1, category = "brak", excerpt = krótki tytuł nowego zapisu, suggestion = pełna treść nowego zapisu.
 - category: "ryzyko" | "niejasność" | "brak" | "termin" | "płatność".
+- parties: name = sama nazwa strony (bez adresu); role = określenie użyte w umowie w mianowniku (np. „Klient”, „Agencja”); details = siedziba/adres, NIP/KRS/PESEL i reprezentacja – tylko jeśli są w tekście, inaczej pusty tekst.
 - obligations: najważniejsze obowiązki każdej ze stron (krótkie punkty). dates i payments: terminy i kwoty wynikające z umowy.
 - summary: 2–4 zdania: czego dotyczy umowa i ogólna ocena z perspektywy użytkownika, z wymienieniem 2–3 najważniejszych spraw do negocjacji.`
 
@@ -67,7 +68,7 @@ const SCHEMA = {
   properties: {
     summary: str,
     contractType: str,
-    parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str }, required: ['name', 'role'], additionalProperties: false } },
+    parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str, details: str }, required: ['name', 'role', 'details'], additionalProperties: false } },
     obligations: { type: 'array', items: { type: 'object', properties: { party: str, items: { type: 'array', items: str } }, required: ['party', 'items'], additionalProperties: false } },
     dates: { type: 'array', items: labelValue },
     payments: { type: 'array', items: labelValue },

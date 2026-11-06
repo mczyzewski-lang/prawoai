@@ -16,6 +16,7 @@ import {
 import { useStore } from '../store/AppStore'
 import { Alert, Button, ButtonLink, Card, EmptyState, SelectField, TextArea, TextField } from '../components/ui'
 import { ShareDialog } from '../components/ShareDialog'
+import { PartiesColumns } from '../components/workspace/DocumentParts'
 import { useToast } from '../components/Toast'
 import { cx, nowIso, otherParty, uid } from '../lib/utils'
 
@@ -301,8 +302,12 @@ function Wizard({ t }: { t: TemplateDefinition }) {
               )}
             </div>
             <div className="bg-paper px-5 py-6 sm:px-8">
-              <h2 className="text-center font-serif text-xl font-semibold uppercase tracking-wide text-ink-900">{draft.title || t.name}</h2>
-              <div className="mt-6 space-y-6">
+              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-700">Projekt umowy</p>
+              <h2 className="mt-2 text-center font-serif text-2xl font-semibold text-ink-900">{draft.title || t.name}</h2>
+              <div className="mt-6">
+                <PartiesColumns parties={draft.parties} viewer={draft.myRole ?? undefined} />
+              </div>
+              <div className="mt-8 space-y-6">
                 {clauses.map((c, i) => (
                   <EditableClause
                     key={c.id}

@@ -44,7 +44,7 @@ interface RawFinding {
 interface RawResult {
   summary: string
   contractType: string
-  parties: { name: string; role: string }[]
+  parties: { name: string; role: string; details: string }[]
   obligations: { party: string; items: string[] }[]
   dates: { label: string; value: string }[]
   payments: { label: string; value: string }[]
@@ -113,7 +113,7 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
     createdAt: nowIso(),
     summary: raw.summary,
     contractType: raw.contractType,
-    parties: raw.parties.slice(0, 2),
+    parties: raw.parties.slice(0, 2).map((p) => ({ name: p.name, role: p.role, details: p.details?.trim() || undefined })),
     obligations: raw.obligations,
     dates: raw.dates,
     payments: raw.payments,

@@ -102,7 +102,8 @@ export interface AnalysisResult {
   createdAt: string
   summary: string
   contractType: string
-  parties: { name: string; role: string }[]
+  /** details – adres, NIP/KRS/PESEL, reprezentacja (jak w tekście umowy). */
+  parties: { name: string; role: string; details?: string }[]
   obligations: { party: string; items: string[] }[]
   dates: { label: string; value: string }[]
   payments: { label: string; value: string }[]

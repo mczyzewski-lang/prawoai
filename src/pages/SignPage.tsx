@@ -11,6 +11,8 @@ import { Alert, Button, ButtonLink, Card, EmptyState, StatusBadge, Tabs, TextFie
 import { GuestLayout } from '../components/Layout'
 import { useToast } from '../components/Toast'
 import { useGuest } from './ContractPage'
+import { ClauseBody, ClauseHeading, DocumentHeader, PartiesColumns, SignatureStrip } from '../components/workspace/DocumentParts'
+import { isPartiesClause, partiesClauseIsGenerated } from '../lib/documentFormat'
 import { displayStatus } from '../lib/utils'
 
 export function OwnerSignPage() {
@@ -105,18 +107,27 @@ function SignView({ c, viewer, viewerName, canSignFor, backTo }: { c: Contract; 
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
           <Card className="overflow-hidden">
-            <div className="max-h-[70vh] overflow-y-auto bg-paper px-5 py-6 sm:px-10" tabIndex={0} aria-label="Finalna treść umowy">
-              <h2 className="text-center font-serif text-xl font-semibold uppercase tracking-wide text-ink-900">{c.title}</h2>
-              <div className="mt-6 space-y-5">
+            <div className="max-h-[75vh] overflow-y-auto bg-paper" tabIndex={0} aria-label="Finalna treść umowy">
+              <DocumentHeader c={c} />
+              <div className="divide-y divide-slate-200/60">
                 {c.clauses.map((cl, i) => (
-                  <section key={cl.id}>
-                    <h3 className="font-serif font-semibold text-ink-900">
-                      § {i + 1}. {cl.title}
+                  <section key={cl.id} className="px-5 py-5 sm:px-10">
+                    <h3>
+                      <ClauseHeading index={i} title={cl.title} />
                     </h3>
-                    <p className="mt-1.5 whitespace-pre-wrap font-serif text-[15px] leading-relaxed text-slate-800">{cl.text}</p>
+                    {isPartiesClause(c, i) ? (
+                      <div className="mt-4">
+                        <PartiesColumns parties={c.parties} />
+                        <p className="mt-3 text-center font-serif text-[14px] italic text-slate-500">zwanymi dalej łącznie „Stronami”</p>
+                        {!partiesClauseIsGenerated(c, cl) && <ClauseBody text={cl.text} className="mt-4 text-[14.5px]" />}
+                      </div>
+                    ) : (
+                      <ClauseBody text={cl.text} className="mt-3" />
+                    )}
                   </section>
                 ))}
               </div>
+              <SignatureStrip c={c} />
             </div>
             <div className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
               Skrót treści (SHA-256): <code className="break-all text-slate-700">{hash || 'obliczanie…'}</code>

@@ -23,15 +23,17 @@ import {
 import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
 import { useStore } from '../../store/AppStore'
 import { acceptCurrentVersion, addComment, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
-import { cx, displayStatus, formatDate, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
+import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
 import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs } from '../ui'
 import { useToast } from '../Toast'
 import { ShareDialog } from '../ShareDialog'
 import { FindingCard, PRIORITY_META, ProposalCard, priorityOf } from './Cards'
-import { HighlightedText, matchesFilter, numberFindings, type FindingFilter, type NumberedFinding } from './Annotations'
+import { matchesFilter, numberFindings, type FindingFilter, type NumberedFinding } from './Annotations'
 import { ProposalModal } from './ProposalModal'
 import { PrivateAssistant } from './PrivateAssistant'
 import { Diff } from './Diff'
+import { ClauseBody, ClauseHeading, DocumentHeader, PartiesColumns, SignatureStrip } from './DocumentParts'
+import { isPartiesClause, partiesClauseIsGenerated } from '../../lib/documentFormat'
 import { downloadContractPdf } from '../../lib/pdf'
 
 type Panel = 'dokument' | 'analiza' | 'negocjacje' | 'asystent' | 'historia'
@@ -320,13 +322,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             </div>
           )}
           <article className="rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200" aria-label="Treść umowy">
-            <div className="border-b border-slate-200/70 px-5 py-6 text-center sm:px-10">
-              <h2 className="font-serif text-xl font-semibold uppercase tracking-wide text-ink-900">{c.title}</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Wersja {version} z {formatDate(c.versions[c.versions.length - 1]?.createdAt ?? c.createdAt)}
-                {c.templateId && ' · projekt na podstawie wzoru przykładowego'}
-              </p>
-            </div>
+            <DocumentHeader c={c} />
             <div className="divide-y divide-slate-200/60">
               {c.clauses.map((cl, i) => (
                 <ClauseBlock
@@ -376,6 +372,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                 </div>
               </section>
             )}
+            <SignatureStrip c={c} />
           </article>
         </div>
 
@@ -470,6 +467,9 @@ function ClauseBlock({
   const hasKey = pending.some((m) => priorityOf(m.f) === 'najważniejsze')
   const activeHere = marks.find((m) => m.f.id === activeFinding)
   const shared = c.stage !== 'draft'
+  const isParties = isPartiesClause(c, index)
+  const generatedParties = partiesClauseIsGenerated(c, clause)
+  const [showText, setShowText] = useState(false)
 
   return (
     <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected ? 'bg-brand-50/60' : 'hover:bg-white/60', marginMode && 'lg:pr-5')} aria-labelledby={`t-${clause.id}`}>
@@ -477,8 +477,8 @@ function ClauseBlock({
       <div className={cx(marginMode && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_340px]')}>
         <div className="min-w-0">
           <button type="button" onClick={onSelect} aria-expanded={selected} className="group flex w-full items-start justify-between gap-3 text-left">
-            <h3 id={`t-${clause.id}`} className="font-serif text-[17px] font-semibold text-ink-900 group-hover:text-brand-800">
-              § {index + 1}. {clause.title}
+            <h3 id={`t-${clause.id}`} className="transition group-hover:opacity-80">
+              <ClauseHeading index={index} title={clause.title} />
             </h3>
             <span className="flex shrink-0 flex-wrap justify-end gap-1">
               {pending.length > 0 && (
@@ -498,9 +498,24 @@ function ClauseBlock({
               )}
             </span>
           </button>
-          <p className="mt-2 whitespace-pre-wrap font-serif text-[15.5px] leading-[1.75] text-slate-800">
-            {marks.length ? <HighlightedText text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} /> : clause.text}
-          </p>
+          {isParties ? (
+            <div className="mt-4">
+              <PartiesColumns parties={c.parties} viewer={viewer} />
+              <p className="mt-3 text-center font-serif text-[14px] italic text-slate-500">zwanymi dalej łącznie „Stronami”</p>
+              {(!generatedParties || showText || pending.length > 0) ? (
+                <div className="mt-4 rounded-xl bg-white/70 p-4 ring-1 ring-slate-200/70">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Brzmienie zapisu</p>
+                  <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} className="text-[14.5px]" />
+                </div>
+              ) : (
+                <button type="button" onClick={() => setShowText(true)} className="mt-2 text-xs font-medium text-brand-700 hover:underline">
+                  Pokaż pełne brzmienie zapisu
+                </button>
+              )}
+            </div>
+          ) : (
+            <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} className="mt-3" />
+          )}
 
           {/* Aktywny komentarz pod zapisem – na telefonie (i na desktopie bez marginesu) */}
           {activeHere && (
