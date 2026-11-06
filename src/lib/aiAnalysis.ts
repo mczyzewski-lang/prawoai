@@ -46,7 +46,7 @@ interface RawResult {
   summary: string
   verdict: string
   priorities: string[]
-  checks: { title: string; detail: string }[]
+  checks: { title: string; detail: string; source: string }[]
   negotiationMessage: string
   contractType: string
   parties: { name: string; role: string; kind: 'osoba' | 'firma'; address: string; idNumber: string; representative: string }[]
@@ -54,6 +54,16 @@ interface RawResult {
   dates: { label: string; value: string }[]
   payments: { label: string; value: string }[]
   findings: RawFinding[]
+}
+
+/** Usuwa wtrącone przez wyszukiwarkę odnośniki „([domena](url))”. */
+function noCite(t: string): string {
+  return (t ?? '').replace(/\s*\(\[[^\]]*\]\([^)]*\)\)/g, '').replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '$1').trim()
+}
+
+function cleanUrl(u: string): string | undefined {
+  const m = (u ?? '').match(/https?:\/\/[^\s)\]]+/)
+  return m ? m[0].replace(/[?&]utm_source=openai/, '') : undefined
 }
 
 /** Odnajduje cytat w treści zapisu (tolerancja na różnice w białych znakach i cudzysłowach). */
@@ -110,10 +120,10 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
       priority: f.priority,
       importance,
       aspect: f.aspect,
-      impact: f.impact?.trim() || undefined,
+      impact: noCite(f.impact ?? '') || undefined,
       category: clause ? f.category : 'brak',
-      title: f.title,
-      explanation: f.explanation,
+      title: noCite(f.title),
+      explanation: noCite(f.explanation),
       suggestion: f.suggestion.trim(),
       excerpt,
       status: 'pending',
@@ -123,10 +133,10 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
 
   return {
     createdAt: nowIso(),
-    summary: raw.summary,
+    summary: noCite(raw.summary),
     verdict: raw.verdict?.trim() || undefined,
     priorities: (raw.priorities ?? []).filter(Boolean).slice(0, 3),
-    checks: (raw.checks ?? []).slice(0, 8),
+    checks: (raw.checks ?? []).slice(0, 10).map((c) => ({ title: noCite(c.title), detail: noCite(c.detail), source: cleanUrl(c.source) })),
     negotiationMessage: raw.negotiationMessage?.trim() || undefined,
     context: context?.trim() || undefined,
     contractType: raw.contractType,

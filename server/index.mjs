@@ -16,7 +16,7 @@ const API_KEY = process.env.OPENAI_API_KEY?.trim() || ''
 const MODEL = process.env.OPENAI_MODEL?.trim() || 'gpt-5.5'
 const BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, '')
 const MAX_CHARS = 120_000
-const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS || 180_000)
+const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS || 300_000)
 const DIST = join(ROOT, 'dist')
 // Wersja działającego serwera – do sprawdzenia, czy wdrożenie jest aktualne (GET /api/status).
 const APP_VERSION = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8')).version
@@ -64,7 +64,10 @@ Zasady:
 - Opierasz się wyłącznie na treści dokumentu. Nie wymyślaj faktów, kwot ani dat.
 - NIE powołuj się na numery artykułów, nazwy ustaw, orzeczenia ani inne źródła. Jeśli coś może wymagać szczególnej formy lub regulacji, napisz ogólnie, że warto to sprawdzić z prawnikiem.
 - Pisz po polsku, prostym, konkretnym językiem, zwracając się do użytkownika na „Ty”.
-- Podaj od 6 do 15 uwag, posortowanych od najistotniejszej.
+- Podaj od 10 do 18 uwag, posortowanych od najistotniejszej. Lepiej zgłosić o jedną uwagę za dużo niż przeoczyć coś, co uderza w portfel lub bezpieczeństwo użytkownika.
+- OBOWIĄZKOWO oceń harmonogram płatności z perspektywy użytkownika: ile procent i ile złotych płaci przed wykonaniem/odbiorem (np. „60% = 26 592 zł przed montażem”), czy płatności są powiązane z etapami (dostawa, uruchomienie, odbiór), czy płatność końcowa zależy od odbioru bez wad. Jeśli przedpłata jest wysoka lub nie ma transz – zaproponuj konkretny podział (np. 30% przy podpisaniu / 40% po dostawie / 30% po odbiorze) w suggestion.
+- Sprawdź też zawsze (jeśli dotyczy): gwarancję i rękojmię (rozdzielenie gwarancji producenta i wykonawcy, okresy, czas reakcji serwisu), odbiór (termin, kryteria, protokół, prawo odmowy przy wadach), kompletność zakresu (czy wszystkie prace i materiały są wymienione, czy grożą dopłaty), konsekwencje opóźnień (kary, odstąpienie, zwrot zaliczki), cenę (netto/brutto, VAT, co obejmuje), obowiązki nałożone na użytkownika (np. nadzór, przygotowanie miejsca), aktualność dat i danych.
+- Każda uwaga musi zawierać konkretną rekomendację w suggestion (gotowe brzmienie zapisu) – nie ogólnik „warto doprecyzować”.
 - priority: "najważniejsze" – tylko sprawy, które realnie wpływają na pieniądze, ryzyko lub możliwość wyjścia z umowy i o które naprawdę warto negocjować (zwykle 3–7 uwag, importance 4–5); "kosmetyka" – doprecyzowania, usprawnienia i sprawy drugorzędne, które dobrze poprawić, ale nie warto o nie toczyć sporu (importance 1–3).
 - importance: 1–5 (5 = krytyczne dla użytkownika, 1 = drobiazg).
 - aspect: "finansowe" | "biznesowe" | "operacyjne" | "prawne".
@@ -78,7 +81,8 @@ Zasady:
 - summary: 2–4 zdania: czego dotyczy umowa (strony, przedmiot, kwota) i ogólna ocena z perspektywy użytkownika.
 - verdict: jedno–dwa zdania szczerej oceny, np. „Umowa jest poprawna, ale za słabo zabezpiecza Cię jako inwestora – największe problemy to przedpłata, gwarancja i odbiór”.
 - priorities: 3 najważniejsze sprawy, o które warto zawalczyć, każda jako krótkie zdanie z konkretem.
-- checks: 2–6 spraw do sprawdzenia lub potwierdzenia przed podpisaniem, które NIE są zmianą konkretnego zapisu (np. „Poproś o obliczenie zapotrzebowania na ciepło”, „Potwierdź status autoryzowanego instalatora”); title + detail (1–3 zdania).
+- checks: 4–8 spraw do sprawdzenia lub potwierdzenia przed podpisaniem, które NIE są zmianą konkretnego zapisu (np. „Poproś o obliczenie zapotrzebowania na ciepło”, „Potwierdź status autoryzowanego instalatora”); title + detail (2–4 zdania, konkretnie, z liczbami jeśli je znasz) + source (adres strony źródła, jeśli korzystałeś z wyszukiwania; inaczej pusty tekst).
+- Jeśli umowa wymienia konkretne urządzenia, modele lub produkty (np. symbol pompy ciepła, model samochodu), SPRAWDŹ w internecie ich kluczowe parametry i warunki gwarancji producenta oraz – jeśli użytkownik podał w kontekście inny model – różnice między nimi, i uwzględnij to w checks z podaniem źródła. Możesz użyć wyszukiwania w internecie, aby sprawdzić dane produktów i usług wymienionych w umowie (np. parametry urządzeń, warunki gwarancji producenta, różnice między modelami) – tylko w źródłach producenta lub instytucji. Nie wyszukuj i nie cytuj przepisów ani orzeczeń. W tekstach uwag nie wstawiaj linków.
 - negotiationMessage: gotowa, uprzejma i rzeczowa wiadomość od użytkownika do drugiej strony (zwracaj się „Dzień dobry,”), z ponumerowaną listą proponowanych zmian i próśb (najważniejsze najpierw, każda w 1–2 zdaniach, z konkretnymi wartościami), zakończona zdaniem o gotowości do finalizacji. Bez podpisu imieniem.`
 
 const str = { type: 'string' }
@@ -91,7 +95,7 @@ const SCHEMA = {
     summary: str,
     verdict: str,
     priorities: { type: 'array', items: str },
-    checks: { type: 'array', items: { type: 'object', properties: { title: str, detail: str }, required: ['title', 'detail'], additionalProperties: false } },
+    checks: { type: 'array', items: { type: 'object', properties: { title: str, detail: str, source: str }, required: ['title', 'detail', 'source'], additionalProperties: false } },
     negotiationMessage: str,
     contractType: str,
     parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str, kind: { type: 'string', enum: ['osoba', 'firma'] }, address: str, idNumber: str, representative: str }, required: ['name', 'role', 'kind', 'address', 'idNumber', 'representative'], additionalProperties: false } },
@@ -187,6 +191,7 @@ async function analyze(body) {
     ],
     text: { format: { type: 'json_schema', name: 'contract_analysis', strict: true, schema: SCHEMA } },
   }
+  if (process.env.OPENAI_WEB_SEARCH !== '0') payload.tools = [{ type: 'web_search' }]
   return callModel(payload, process.env.OPENAI_REASONING_EFFORT || 'medium')
 }
 

@@ -122,7 +122,7 @@ export interface AnalysisResult {
   /** Ogólna ocena, priorytety, sprawy do sprawdzenia i gotowa wiadomość do drugiej strony (analiza AI). */
   verdict?: string
   priorities?: string[]
-  checks?: { title: string; detail: string }[]
+  checks?: { title: string; detail: string; source?: string }[]
   negotiationMessage?: string
   /** Kontekst podany przez użytkownika przed analizą. */
   context?: string

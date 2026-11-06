@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   BookmarkPlus,
+  FileText,
   Bot,
   Check,
   CheckCircle2,
@@ -192,11 +193,11 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   }
 
   const tabs = useMemo(() => {
-    const t: { id: Panel; label: string; icon: ReactNode; count?: number }[] = []
-    if (hasAnalysis) t.push({ id: 'analiza', label: 'Analiza', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
-    t.push({ id: 'negocjacje', label: 'Negocjacje', icon: <Users className="size-4" aria-hidden />, count: openProposals.length })
-    t.push({ id: 'asystent', label: 'Asystent', icon: <Bot className="size-4" aria-hidden /> })
-    t.push({ id: 'historia', label: 'Historia', icon: <History className="size-4" aria-hidden /> })
+    const t: { id: Panel; label: string; hint: string; icon: ReactNode; count?: number }[] = []
+    if (hasAnalysis) t.push({ id: 'analiza', label: 'Uwagi', hint: 'Ocena umowy i propozycje zmian', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
+    t.push({ id: 'asystent', label: 'Asystent AI', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
+    t.push({ id: 'negocjacje', label: 'Negocjacje', hint: 'Propozycje i komentarze stron', icon: <Users className="size-4" aria-hidden />, count: openProposals.length })
+    t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
     return t
   }, [hasAnalysis, pendingFindings, openProposals.length])
 
@@ -370,7 +371,44 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
         tabs={[{ id: 'dokument', label: 'Dokument', icon: undefined }, ...tabs]}
       />
 
-      <Tabs<Exclude<Panel, 'dokument'>> label="Panel boczny" className="mb-4 hidden w-fit lg:flex" value={desktopPanel} onChange={(p) => setPanel(p)} tabs={tabs as { id: Exclude<Panel, 'dokument'>; label: string; icon: ReactNode; count?: number }[]} />
+      {/* Pasek narzędzi umowy (desktop) – przyklejony, nad panelem bocznym */}
+      <div className="sticky top-16 z-20 -mx-6 mb-4 hidden border-b border-slate-200/70 bg-sand-50/90 px-6 py-2.5 backdrop-blur lg:block">
+        <div className={cx('grid items-center gap-6', analysisDesktop ? 'grid-cols-[minmax(0,1fr)_auto]' : 'lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]')}>
+          <p className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
+            <FileText className="size-4 shrink-0 text-slate-400" aria-hidden />
+            <span className="truncate">
+              <span className="font-medium text-ink-900">Dokument</span> · wersja {version}
+              {selected && <span> · wybrany: {selected.title}</span>}
+            </span>
+          </p>
+          <div role="tablist" aria-label="Panel umowy" className="flex gap-1 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
+            {tabs.map((t, i) => {
+              const active = desktopPanel === t.id
+              return (
+                <button
+                  key={t.id}
+                  role="tab"
+                  type="button"
+                  aria-selected={active}
+                  title={t.hint}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setPanel(t.id)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+                    const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]
+                    setPanel(n.id)
+                  }}
+                  className={cx('flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition', active ? 'bg-ink-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-ink-900')}
+                >
+                  {t.icon}
+                  {t.label}
+                  {t.count !== undefined && t.count > 0 && <span className={cx('rounded-full px-1.5 text-xs', active ? 'bg-white/20' : 'bg-brand-100 text-brand-800')}>{t.count}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
       <div className={cx('grid gap-6', analysisDesktop ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]')}>
         <div className={cx(panel !== 'dokument' && 'hidden lg:block')}>
@@ -429,8 +467,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           </article>
         </div>
 
-        <aside className={cx('lg:sticky lg:top-20 lg:self-start', panel === 'dokument' && 'hidden lg:block', analysisDesktop && 'lg:hidden')} aria-label="Panel boczny">
-          <div className="lg:max-h-[calc(100dvh-10rem)] lg:overflow-y-auto lg:pr-1 scrollbar-thin">{panelContent(panel === 'dokument' ? desktopPanel : (panel as Exclude<Panel, 'dokument'>))}</div>
+        <aside className={cx('lg:sticky lg:top-[8.25rem] lg:self-start', panel === 'dokument' && 'hidden lg:block', analysisDesktop && 'lg:hidden')} aria-label="Panel boczny">
+          <div className="lg:max-h-[calc(100dvh-9.5rem)] lg:overflow-y-auto lg:pr-1 scrollbar-thin">{panelContent(panel === 'dokument' ? desktopPanel : (panel as Exclude<Panel, 'dokument'>))}</div>
         </aside>
       </div>
 
@@ -880,6 +918,17 @@ function AnalysisOverview({ c, filter, onFilter, compactDetails }: { c: Contract
                 <span>
                   <span className="font-medium text-ink-900">{ch.title}</span>
                   <span className="mt-0.5 block leading-relaxed text-slate-600">{ch.detail}</span>
+                  {ch.source && (
+                    <a href={ch.source} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-xs font-medium text-brand-700 hover:underline">
+                      Źródło: {(() => {
+                        try {
+                          return new URL(ch.source).hostname.replace(/^www\./, '')
+                        } catch {
+                          return ch.source
+                        }
+                      })()}
+                    </a>
+                  )}
                 </span>
               </li>
             ))}
