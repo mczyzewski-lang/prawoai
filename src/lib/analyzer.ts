@@ -7,8 +7,47 @@ import { nowIso, plural, uid, wordCount } from './utils'
  * ani analizy wykonanej przez model AI z dostępem do źródeł prawa.
  */
 
+const LIST_MARKER = /^\s*(\d{1,2}[.)]|[a-zA-Z][.)]|[-–•▪●◦]|§\s*\d+|Art(ykuł|\.)\s*\d+|Rozdział\s)/
+
+/**
+ * Porządkuje tekst wyciągnięty z PDF/DOCX: łączy łamane linie akapitów,
+ * usuwa zbędne puste linie i zamienia utracone oznaczenia punktów („)” bez litery) na myślniki.
+ */
+export function normalizeContractText(raw: string): string {
+  const lines = raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/[   ]/g, ' ')
+    .replace(/\t/g, ' ')
+    .split('\n')
+    .map((l) =>
+      l
+        .replace(/\s+$/g, '')
+        .replace(/^\s*\)\s+/, '– ') // litera punktu zgubiona przy odczycie PDF
+        .replace(/^\s*[•▪●◦]\s*/, '– ')
+        .replace(/ {2,}/g, ' '),
+    )
+  const out: string[] = []
+  const isHeadingLine = (l: string) => /^[A-ZĄĆĘŁŃÓŚŹŻ0-9 .,–-]{4,}$/.test(l.trim()) && l.trim().length < 90
+  for (const cur of lines) {
+    if (!cur.trim()) {
+      if (out.length && out[out.length - 1] !== '') out.push('')
+      continue
+    }
+    // poprzednia niepusta linia (dopuszczamy jedną pustą przerwę – artefakt PDF)
+    let prevIdx = out.length - 1
+    if (prevIdx >= 0 && out[prevIdx] === '') prevIdx--
+    const prev = prevIdx >= 0 ? out[prevIdx] : ''
+    const continues = !!prev && !/[.:;!?]$/.test(prev.trim()) && prev.trim().length >= 35 && !isHeadingLine(prev) && !LIST_MARKER.test(cur) && !isHeadingLine(cur)
+    if (continues) {
+      out.length = prevIdx + 1
+      out[prevIdx] = `${prev.trimEnd()} ${cur.trim()}`
+    } else out.push(cur.trim())
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 export function parseClauses(raw: string): Clause[] {
-  const text = raw.replace(/\r\n/g, '\n').replace(/ /g, ' ').trim()
+  const text = normalizeContractText(raw)
   if (!text) return []
   const lines = text.split('\n')
   const isHeading = (l: string) => /^\s*(§\s*\d+|Art(ykuł|\.)\s*\d+|Rozdział\s+[IVX\d]+)/i.test(l)

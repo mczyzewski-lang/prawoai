@@ -24,6 +24,7 @@ export default function AnalyzePage() {
   const [stage, setStage] = useState(-1)
   const [prep, setPrep] = useState<{ clauses: Clause[]; parties: { name: string; role: string; details?: string }[] } | null>(null)
   const [lastParty, setLastParty] = useState<PartyId | null>(null)
+  const [context, setContext] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -89,7 +90,7 @@ export default function AnalyzePage() {
     let analysis: AnalysisResult
     if (withAi) {
       try {
-        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined)
+        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined, context)
       } catch (e) {
         setStage(-1)
         setAiError(e instanceof AiAnalysisError ? e.message : 'Nie udało się przeprowadzić analizy AI.')
@@ -166,7 +167,24 @@ export default function AnalyzePage() {
               </div>
             </Alert>
           )}
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {ai?.ai && (
+            <div className="mt-5">
+              <label htmlFor="ctx" className="flex items-baseline justify-between text-sm font-medium text-slate-800">
+                Co jeszcze powinniśmy wiedzieć?<span className="text-xs font-normal text-slate-500">opcjonalnie</span>
+              </label>
+              <textarea
+                id="ctx"
+                rows={3}
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                placeholder="Np. w ostatniej ofercie był inny model za 46 820 zł brutto; zależy mi na płatności po odbiorze; jestem osobą prywatną"
+                className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 text-[15px] leading-relaxed focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
+              />
+              <p className="mt-1 text-xs text-slate-500">Wcześniejsze ustalenia, oferta, na czym Ci zależy – ocena uwzględni rozbieżności z umową.</p>
+            </div>
+          )}
+          <p className="mt-5 text-sm font-medium text-slate-800">Wybierz swoją stronę, aby rozpocząć ocenę:</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {(['A', 'B'] as PartyId[]).map((id, i) => {
               const p = prep.parties[i]
               return (

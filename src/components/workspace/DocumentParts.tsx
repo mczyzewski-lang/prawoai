@@ -97,7 +97,7 @@ export function ClauseBody({ text, marks = [], activeId = null, onActivate = () 
   return (
     <div className={cx('space-y-2 font-serif text-[15.5px] leading-[1.75] text-slate-800', className)}>
       {lines.map((l, i) => {
-        if (l.kind === 'blank') return <div key={i} className="h-1" aria-hidden />
+        if (l.kind === 'blank') return null
         const lineMarks = marks
           .filter((m) => m.at >= l.offset && m.f.excerpt && m.at + m.f.excerpt.length <= l.offset + l.length)
           .map((m) => ({ ...m, at: m.at - l.offset }))

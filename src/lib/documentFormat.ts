@@ -30,7 +30,7 @@ export function splitClauseLines(text: string): ClauseLine[] {
       out.push({ kind: 'blank', marker: '', content: '', offset: start, length: 0 })
       continue
     }
-    const m = raw.match(/^(\s*)(\d{1,2}[.)]|[a-z][.)]|[-–•])(\s+)/)
+    const m = raw.match(/^(\s*)(\d{1,2}[.)]|[a-z][.)]|[-–•▪]|\))(\s+)/)
     if (m) {
       const marker = m[2]
       const kind: LineKind = /^\d/.test(marker) ? 'num' : /^[a-z]/.test(marker) ? 'letter' : 'bullet'

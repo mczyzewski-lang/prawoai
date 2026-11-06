@@ -43,6 +43,10 @@ interface RawFinding {
 
 interface RawResult {
   summary: string
+  verdict: string
+  priorities: string[]
+  checks: { title: string; detail: string }[]
+  negotiationMessage: string
   contractType: string
   parties: { name: string; role: string; details: string }[]
   obligations: { party: string; items: string[] }[]
@@ -70,13 +74,13 @@ export interface Perspective {
   otherRole: string
 }
 
-export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective): Promise<AnalysisResult> {
+export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective, context?: string): Promise<AnalysisResult> {
   let r: Response
   try {
     r = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })), perspective }),
+      body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })), perspective, context }),
     })
   } catch {
     throw new AiAnalysisError('Brak połączenia z serwerem analizy.', 'network')
@@ -112,6 +116,11 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
   return {
     createdAt: nowIso(),
     summary: raw.summary,
+    verdict: raw.verdict?.trim() || undefined,
+    priorities: (raw.priorities ?? []).filter(Boolean).slice(0, 3),
+    checks: (raw.checks ?? []).slice(0, 8),
+    negotiationMessage: raw.negotiationMessage?.trim() || undefined,
+    context: context?.trim() || undefined,
     contractType: raw.contractType,
     parties: raw.parties.slice(0, 2).map((p) => ({ name: p.name, role: p.role, details: p.details?.trim() || undefined })),
     obligations: raw.obligations,

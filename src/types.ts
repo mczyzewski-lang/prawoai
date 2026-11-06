@@ -113,6 +113,13 @@ export interface AnalysisResult {
   /** Kto wykonał ocenę: model AI czy analiza regułowa. */
   engine?: 'ai' | 'rules'
   model?: string
+  /** Ogólna ocena, priorytety, sprawy do sprawdzenia i gotowa wiadomość do drugiej strony (analiza AI). */
+  verdict?: string
+  priorities?: string[]
+  checks?: { title: string; detail: string }[]
+  negotiationMessage?: string
+  /** Kontekst podany przez użytkownika przed analizą. */
+  context?: string
   /** Z czyjej perspektywy wykonano ocenę. */
   perspective?: { role: string; name: string }
 }

@@ -614,7 +614,26 @@ function AnalysisOverview({ c, filter, onFilter, compactDetails }: { c: Contract
             {a.perspective.name ? ` (${a.perspective.name})` : ''}
           </p>
         )}
+        {a.verdict && <p className="mt-3 rounded-xl bg-ink-900 px-4 py-3 text-[15px] font-medium leading-relaxed text-white">{a.verdict}</p>}
         <p className="mt-2 text-sm leading-relaxed text-slate-700">{a.summary}</p>
+        {a.priorities && a.priorities.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-700">O to warto zawalczyć</p>
+            <ol className="mt-1.5 space-y-1.5">
+              {a.priorities.map((p, i) => (
+                <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink-900">
+                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-rose-600 text-[11px] font-bold text-white">{i + 1}</span>
+                  {p}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {a.context && (
+          <p className="mt-3 text-xs text-slate-500">
+            <span className="font-medium text-slate-600">Uwzględniony kontekst:</span> {a.context}
+          </p>
+        )}
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
           {a.engine === 'ai' ? `Ocena wykonana przez model AI (OpenAI${a.model ? `, ${a.model}` : ''}) na podstawie treści dokumentu „${a.sourceName}”. Model może się mylić – sprawdź uwagi przed użyciem.` : `Analiza podstawowa: automatyczne wyszukiwanie typowych zapisów i braków w dokumencie „${a.sourceName}”.`}{' '}
           Nie zastępuje porady prawnika.
@@ -690,6 +709,25 @@ function AnalysisOverview({ c, filter, onFilter, compactDetails }: { c: Contract
         </details>
       </div>
 
+      {a.checks && a.checks.length > 0 && (
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+          <h3 className="font-semibold text-ink-900">Do sprawdzenia przed podpisaniem</h3>
+          <ul className="mt-2 space-y-2.5">
+            {a.checks.map((ch, i) => (
+              <li key={i} className="flex gap-2.5 text-sm">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden />
+                <span>
+                  <span className="font-medium text-ink-900">{ch.title}</span>
+                  <span className="mt-0.5 block leading-relaxed text-slate-600">{ch.detail}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {a.negotiationMessage && <NegotiationMessage c={c} initial={a.negotiationMessage} />}
+
       <div role="group" aria-label="Filtr komentarzy" className="flex flex-wrap gap-1.5">
         {(
           [
@@ -710,6 +748,63 @@ function AnalysisOverview({ c, filter, onFilter, compactDetails }: { c: Contract
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** Gotowa wiadomość do drugiej strony – do skopiowania lub wysłania jako wspólny komentarz. */
+function NegotiationMessage({ c, initial }: { c: Contract; initial: string }) {
+  const { state, updateContract } = useStore()
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState(initial)
+  const shared = !!c.shareId
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast('Skopiowano wiadomość')
+    } catch {
+      toast('Nie udało się skopiować – zaznacz tekst i skopiuj ręcznie.', 'error')
+    }
+  }
+  return (
+    <div className="rounded-2xl bg-white ring-1 ring-brand-200">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 rounded-2xl p-4 text-left">
+        <span>
+          <span className="flex items-center gap-2 font-semibold text-ink-900">
+            <Send className="size-4 text-brand-700" aria-hidden /> Gotowa wiadomość do drugiej strony
+          </span>
+          <span className="mt-0.5 block text-xs text-slate-500">Lista Twoich próśb i proponowanych zmian – możesz ją edytować.</span>
+        </span>
+        <span className="shrink-0 text-sm font-medium text-brand-700">{open ? 'Zwiń' : 'Pokaż'}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4">
+          <label htmlFor="neg-msg" className="sr-only">
+            Treść wiadomości
+          </label>
+          <textarea id="neg-msg" value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(22, text.split('\n').length + 3)} className="w-full rounded-xl border border-slate-300 p-3 text-sm leading-relaxed focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
+          <div className="mt-2 flex flex-wrap gap-2">
+            {shared && (
+              <Button
+                size="sm"
+                variant="accent"
+                icon={<Send className="size-3.5" />}
+                onClick={() => {
+                  updateContract(c.id, (x) => addComment(x, { clauseId: null, text: text.trim(), partyId: c.ownerPartyId, authorName: state.profile.name }))
+                  toast('Wysłano jako komentarz – druga strona zobaczy go w negocjacjach')
+                }}
+              >
+                Wyślij jako komentarz
+              </Button>
+            )}
+            <Button size="sm" variant="secondary" onClick={copy}>
+              Kopiuj
+            </Button>
+          </div>
+          {!shared && <p className="mt-2 text-xs text-slate-500">Po zaproszeniu drugiej strony wyślesz tę wiadomość jednym kliknięciem jako komentarz w negocjacjach.</p>}
+        </div>
+      )}
     </div>
   )
 }

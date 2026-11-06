@@ -43,7 +43,15 @@ const intakeLimited = makeLimiter(INTAKE_LIMIT_PER_HOUR)
 const INTAKE_MODEL = process.env.OPENAI_INTAKE_MODEL?.trim() || MODEL
 
 const SYSTEM_PROMPT = `Jesteś doświadczonym doradcą, który łączy wiedzę prawnika i praktyka biznesu. Oceniasz umowy zawierane w Polsce.
-Twoim zadaniem jest ocena umowy Z PERSPEKTYWY WSKAZANEJ STRONY (użytkownika) i propozycje zmian, które realnie poprawią jej sytuację, a jednocześnie mają szansę zostać zaakceptowane przez drugą stronę.
+Twoim zadaniem jest ocena umowy Z PERSPEKTYWY WSKAZANEJ STRONY (użytkownika) – jak dobry doradca, który pilnuje jej praw i interesu – oraz propozycje zmian, które realnie poprawią jej sytuację, a jednocześnie mają szansę zostać zaakceptowane przez drugą stronę.
+
+Bądź KONKRETNY jak ekspert, który przeczytał każde słowo:
+- Przeliczaj kwoty i procenty (np. „zaliczka 60% to 26 592 zł płatne przed montażem”), wskaż netto/brutto i VAT, jeśli to niejasne.
+- Wyłapuj sprzeczności wewnątrz dokumentu (np. „5 lat gwarancji”, a dalej 3 lata na urządzenie i 2 na instalację), błędy w datach, odwołania do załączników, których nie ma w tekście, niezdefiniowane pojęcia.
+- Sprawdzaj, czy płatności są powiązane z etapami i odbiorem, czy są kryteria i termin odbioru, czas reakcji serwisu, konsekwencje opóźnień, prawo odstąpienia i zwrot zaliczki, kto ponosi ryzyko i koszty dodatkowych prac.
+- Jeśli użytkownik może być konsumentem (osoba prywatna wobec firmy), uwzględnij typowe uprawnienia konsumenta i zaznacz, że warto je sprawdzić – bez cytowania przepisów.
+- Korzystaj z ogólnej wiedzy branżowej (np. dobór urządzeń, standardowe gwarancje producentów, typowe harmonogramy płatności w budowlance czy IT), ale formułuj ją ostrożnie („warto potwierdzić…”), bez podawania źródeł.
+- Uwzględnij kontekst podany przez użytkownika (np. wcześniejsze ustalenia, oferta, na czym mu zależy) i wskaż rozbieżności między umową a tym kontekstem.
 
 Co sprawdzasz – NIE tylko kwestie prawne:
 - FINANSOWE: struktura i podział płatności (np. 100% z góry lub dopiero na końcu, brak zaliczki lub transz, brak powiązania płatności z etapami/odbiorami), terminy płatności, odsetki i kary, ukryte i dodatkowe koszty, budżety (np. reklamowe) – kto płaci i do jakiej kwoty, waloryzacja i zmiana ceny, kaucje i zabezpieczenia, netto/brutto, waluta.
@@ -67,16 +75,24 @@ Zasady:
 - category: "ryzyko" | "niejasność" | "brak" | "termin" | "płatność".
 - parties: name = sama nazwa strony (bez adresu); role = określenie użyte w umowie w mianowniku (np. „Klient”, „Agencja”); details = siedziba/adres, NIP/KRS/PESEL i reprezentacja – tylko jeśli są w tekście, inaczej pusty tekst.
 - obligations: najważniejsze obowiązki każdej ze stron (krótkie punkty). dates i payments: terminy i kwoty wynikające z umowy.
-- summary: 2–4 zdania: czego dotyczy umowa i ogólna ocena z perspektywy użytkownika, z wymienieniem 2–3 najważniejszych spraw do negocjacji.`
+- summary: 2–4 zdania: czego dotyczy umowa (strony, przedmiot, kwota) i ogólna ocena z perspektywy użytkownika.
+- verdict: jedno–dwa zdania szczerej oceny, np. „Umowa jest poprawna, ale za słabo zabezpiecza Cię jako inwestora – największe problemy to przedpłata, gwarancja i odbiór”.
+- priorities: 3 najważniejsze sprawy, o które warto zawalczyć, każda jako krótkie zdanie z konkretem.
+- checks: 2–6 spraw do sprawdzenia lub potwierdzenia przed podpisaniem, które NIE są zmianą konkretnego zapisu (np. „Poproś o obliczenie zapotrzebowania na ciepło”, „Potwierdź status autoryzowanego instalatora”); title + detail (1–3 zdania).
+- negotiationMessage: gotowa, uprzejma i rzeczowa wiadomość od użytkownika do drugiej strony (zwracaj się „Dzień dobry,”), z ponumerowaną listą proponowanych zmian i próśb (najważniejsze najpierw, każda w 1–2 zdaniach, z konkretnymi wartościami), zakończona zdaniem o gotowości do finalizacji. Bez podpisu imieniem.`
 
 const str = { type: 'string' }
 const labelValue = { type: 'object', properties: { label: str, value: str }, required: ['label', 'value'], additionalProperties: false }
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'contractType', 'parties', 'obligations', 'dates', 'payments', 'findings'],
+  required: ['summary', 'verdict', 'priorities', 'checks', 'negotiationMessage', 'contractType', 'parties', 'obligations', 'dates', 'payments', 'findings'],
   properties: {
     summary: str,
+    verdict: str,
+    priorities: { type: 'array', items: str },
+    checks: { type: 'array', items: { type: 'object', properties: { title: str, detail: str }, required: ['title', 'detail'], additionalProperties: false } },
+    negotiationMessage: str,
     contractType: str,
     parties: { type: 'array', items: { type: 'object', properties: { name: str, role: str, details: str }, required: ['name', 'role', 'details'], additionalProperties: false } },
     obligations: { type: 'array', items: { type: 'object', properties: { party: str, items: { type: 'array', items: str } }, required: ['party', 'items'], additionalProperties: false } },
@@ -142,7 +158,12 @@ function upstreamError(status, message) {
 function perspectiveText(p) {
   const clean = (v) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, 120).trim()
   if (!p?.role) return 'Użytkownik nie wskazał swojej strony – oceniaj neutralnie, wskazując ryzyka dla obu stron.'
-  return `Użytkownik jest stroną: ${clean(p.role)}${p.name ? ` (${clean(p.name)})` : ''}. Druga strona: ${clean(p.otherRole) || 'kontrahent'}. Oceniaj z perspektywy użytkownika.`
+  return `Użytkownik jest stroną: ${clean(p.role)}${p.name ? ` (${clean(p.name)})` : ''}. Druga strona: ${clean(p.otherRole) || 'kontrahent'}. Oceniaj z perspektywy użytkownika i chroń jego interes.`
+}
+
+function contextText(ctx) {
+  const t = String(ctx ?? '').trim().slice(0, 3000)
+  return t ? `\n\nKontekst od użytkownika (wcześniejsze ustalenia, oferta, priorytety):\n${t}` : ''
 }
 
 async function analyze(body) {
@@ -155,7 +176,7 @@ async function analyze(body) {
     model: MODEL,
     input: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `${perspectiveText(body?.perspective)}\n\nOceń poniższą umowę. Zapisy są ponumerowane w nawiasach kwadratowych.\n\n${doc}` },
+      { role: 'user', content: `${perspectiveText(body?.perspective)}${contextText(body?.context)}\n\nOceń poniższą umowę. Zapisy są ponumerowane w nawiasach kwadratowych.\n\n${doc}` },
     ],
     text: { format: { type: 'json_schema', name: 'contract_analysis', strict: true, schema: SCHEMA } },
   }
