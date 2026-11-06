@@ -32,19 +32,31 @@ function rateLimited(req) {
   return false
 }
 
-const SYSTEM_PROMPT = `Jesteś doświadczonym asystentem prawnym, który ocenia umowy zawierane w Polsce.
-Twoim zadaniem jest wstępna ocena umowy i propozycje zmian. Zasady:
-- Oceniasz NEUTRALNIE – wskazujesz zapisy niejasne lub nierówno rozkładające ryzyko, niezależnie od tego, której strony dotyczą. Nie działasz na korzyść żadnej strony.
+const SYSTEM_PROMPT = `Jesteś doświadczonym doradcą, który łączy wiedzę prawnika i praktyka biznesu. Oceniasz umowy zawierane w Polsce.
+Twoim zadaniem jest ocena umowy Z PERSPEKTYWY WSKAZANEJ STRONY (użytkownika) i propozycje zmian, które realnie poprawią jej sytuację, a jednocześnie mają szansę zostać zaakceptowane przez drugą stronę.
+
+Co sprawdzasz – NIE tylko kwestie prawne:
+- FINANSOWE: struktura i podział płatności (np. 100% z góry lub dopiero na końcu, brak zaliczki lub transz, brak powiązania płatności z etapami/odbiorami), terminy płatności, odsetki i kary, ukryte i dodatkowe koszty, budżety (np. reklamowe) – kto płaci i do jakiej kwoty, waloryzacja i zmiana ceny, kaucje i zabezpieczenia, netto/brutto, waluta.
+- BIZNESOWE: zakres i jego doprecyzowanie, ryzyko rozszerzania zakresu bez dopłaty, wyłączność, zakaz konkurencji, uzależnienie od drugiej strony, długość związania umową, automatyczne przedłużenie, łatwość wyjścia z umowy, prawa do rezultatów, dostęp do kont i danych po zakończeniu.
+- OPERACYJNE: procedura odbioru i zgłaszania uwag, liczba poprawek, terminy realizacji, raportowanie, SLA, osoby kontaktowe, przekazanie materiałów.
+- PRAWNE: odpowiedzialność i jej limity, jednostronne uprawnienia, kary umowne, poufność, dane osobowe, sąd właściwy, forma zmian.
+Zwracaj uwagę na asymetrię – czy uprawnienia i sankcje działają tylko w jedną stronę.
+
+Zasady:
 - Opierasz się wyłącznie na treści dokumentu. Nie wymyślaj faktów, kwot ani dat.
 - NIE powołuj się na numery artykułów, nazwy ustaw, orzeczenia ani inne źródła. Jeśli coś może wymagać szczególnej formy lub regulacji, napisz ogólnie, że warto to sprawdzić z prawnikiem.
-- Pisz po polsku, prostym, zrozumiałym językiem.
-- Podaj maksymalnie 12 uwag, od najpoważniejszej. Pomijaj drobiazgi redakcyjne.
-- Dla uwagi dotyczącej istniejącego zapisu: clauseIndex = numer zapisu z nawiasu kwadratowego; excerpt = DOSŁOWNY cytat (fragment, najlepiej jedno zdanie) skopiowany znak w znak z tego zapisu; suggestion = nowe brzmienie, które zastąpi dokładnie ten cytat (pełne zdanie/zdania gotowe do wstawienia, wyważone dla obu stron).
+- Pisz po polsku, prostym, konkretnym językiem, zwracając się do użytkownika na „Ty”.
+- Podaj od 6 do 15 uwag, posortowanych od najistotniejszej.
+- priority: "najważniejsze" – tylko sprawy, które realnie wpływają na pieniądze, ryzyko lub możliwość wyjścia z umowy i o które naprawdę warto negocjować (zwykle 3–7 uwag, importance 4–5); "kosmetyka" – doprecyzowania, usprawnienia i sprawy drugorzędne, które dobrze poprawić, ale nie warto o nie toczyć sporu (importance 1–3).
+- importance: 1–5 (5 = krytyczne dla użytkownika, 1 = drobiazg).
+- aspect: "finansowe" | "biznesowe" | "operacyjne" | "prawne".
+- impact: 1–2 zdania „co to oznacza dla Ciebie” – konkretny skutek praktyczny dla użytkownika (np. ile i kiedy może stracić, na co się naraża).
+- explanation: 1–3 zdania wyjaśniające, co zapis mówi i na czym polega problem.
+- Dla uwagi dotyczącej istniejącego zapisu: clauseIndex = numer zapisu z nawiasu kwadratowego; excerpt = DOSŁOWNY cytat (fragment, najlepiej jedno zdanie lub jego część) skopiowany znak w znak z tego zapisu – dokładnie ten fragment, którego dotyczy uwaga; suggestion = nowe brzmienie, które zastąpi dokładnie ten cytat (gotowe do wstawienia).
 - Dla brakującego postanowienia: clauseIndex = -1, category = "brak", excerpt = krótki tytuł nowego zapisu, suggestion = pełna treść nowego zapisu.
-- severity: "high" – realne ryzyko istotnej szkody lub poważna nierównowaga; "medium" – warto zmienić; "low" – wskazówka lub doprecyzowanie.
-- explanation: 1–3 zdania wyjaśniające, co zapis oznacza w praktyce i dlaczego warto go zmienić.
+- category: "ryzyko" | "niejasność" | "brak" | "termin" | "płatność".
 - obligations: najważniejsze obowiązki każdej ze stron (krótkie punkty). dates i payments: terminy i kwoty wynikające z umowy.
-- summary: 2–4 zdania podsumowania umowy i ogólnej oceny.`
+- summary: 2–4 zdania: czego dotyczy umowa i ogólna ocena z perspektywy użytkownika, z wymienieniem 2–3 najważniejszych spraw do negocjacji.`
 
 const str = { type: 'string' }
 const labelValue = { type: 'object', properties: { label: str, value: str }, required: ['label', 'value'], additionalProperties: false }
@@ -64,13 +76,16 @@ const SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['clauseIndex', 'severity', 'category', 'title', 'explanation', 'excerpt', 'suggestion'],
+        required: ['clauseIndex', 'priority', 'importance', 'aspect', 'category', 'title', 'explanation', 'impact', 'excerpt', 'suggestion'],
         properties: {
           clauseIndex: { type: 'integer' },
-          severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+          priority: { type: 'string', enum: ['najważniejsze', 'kosmetyka'] },
+          importance: { type: 'integer', enum: [1, 2, 3, 4, 5] },
+          aspect: { type: 'string', enum: ['finansowe', 'biznesowe', 'operacyjne', 'prawne'] },
           category: { type: 'string', enum: ['ryzyko', 'niejasność', 'brak', 'termin', 'płatność'] },
           title: str,
           explanation: str,
+          impact: str,
           excerpt: str,
           suggestion: str,
         },
@@ -113,6 +128,12 @@ function upstreamError(status, message) {
   return Object.assign(new Error(msg), { status: 502, code })
 }
 
+function perspectiveText(p) {
+  const clean = (v) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, 120).trim()
+  if (!p?.role) return 'Użytkownik nie wskazał swojej strony – oceniaj neutralnie, wskazując ryzyka dla obu stron.'
+  return `Użytkownik jest stroną: ${clean(p.role)}${p.name ? ` (${clean(p.name)})` : ''}. Druga strona: ${clean(p.otherRole) || 'kontrahent'}. Oceniaj z perspektywy użytkownika.`
+}
+
 async function analyze(body) {
   const clauses = Array.isArray(body?.clauses) ? body.clauses : []
   if (!clauses.length) throw Object.assign(new Error('Brak treści umowy do analizy.'), { status: 400, code: 'empty' })
@@ -123,7 +144,7 @@ async function analyze(body) {
     model: MODEL,
     input: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `Oceń poniższą umowę. Zapisy są ponumerowane w nawiasach kwadratowych.\n\n${doc}` },
+      { role: 'user', content: `${perspectiveText(body?.perspective)}\n\nOceń poniższą umowę. Zapisy są ponumerowane w nawiasach kwadratowych.\n\n${doc}` },
     ],
     text: { format: { type: 'json_schema', name: 'contract_analysis', strict: true, schema: SCHEMA } },
   }

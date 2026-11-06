@@ -22,7 +22,8 @@ export default function AnalyzePage() {
   const [reading, setReading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stage, setStage] = useState(-1)
-  const [result, setResult] = useState<{ clauses: Clause[]; analysis: AnalysisResult; text: string } | null>(null)
+  const [prep, setPrep] = useState<{ clauses: Clause[]; parties: { name: string; role: string }[] } | null>(null)
+  const [lastParty, setLastParty] = useState<PartyId | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -56,26 +57,39 @@ export default function AnalyzePage() {
     if (f) void handleFile(f)
   }
 
-  const run = async (forceRules = false) => {
+  /** Krok 1: podział na zapisy i rozpoznanie stron, potem pytanie o perspektywę. */
+  const start = () => {
     setError(null)
     setAiError(null)
     if (wordCount(text) < 30) {
       setError('Tekst jest za krótki, aby go przeanalizować. Wklej całą umowę (co najmniej kilka zapisów).')
       return
     }
+    const clauses = parseClauses(text)
+    const parties = analyzeContract(text, clauses, '').parties
+    setPrep({ clauses, parties })
+  }
+
+  /** Krok 2: ocena z perspektywy wybranej strony. */
+  const analyzeAs = async (myParty: PartyId | null, forceRules = false) => {
+    if (!prep) return
+    setAiError(null)
+    setLastParty(myParty)
     const withAi = !forceRules && !!ai?.ai
     setUsingAi(withAi)
+    const { clauses, parties } = prep
+    const idx = myParty === 'B' ? 1 : 0
+    const roleOf = (i: number) => parties[i]?.role ?? (i === 0 ? 'Strona pierwsza' : 'Strona druga')
     setStage(0)
-    await sleep(400)
+    await sleep(300)
     setStage(1)
-    const clauses = parseClauses(text)
-    await sleep(400)
+    await sleep(300)
     setStage(2)
     const source = fileName ?? 'Wklejony tekst'
-    let analysis
+    let analysis: AnalysisResult
     if (withAi) {
       try {
-        analysis = await analyzeWithAi(text, clauses, source)
+        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined)
       } catch (e) {
         setStage(-1)
         setAiError(e instanceof AiAnalysisError ? e.message : 'Nie udało się przeprowadzić analizy AI.')
@@ -83,19 +97,17 @@ export default function AnalyzePage() {
       }
     } else {
       analysis = analyzeContract(text, clauses, source)
-      await sleep(700)
+      await sleep(600)
     }
     setStage(3)
-    await sleep(400)
+    await sleep(300)
     setStage(-1)
-    setResult({ clauses, analysis, text })
+    create(myParty ?? 'A', clauses, analysis)
   }
 
-  const create = (myParty: PartyId) => {
-    if (!result) return
-    const { clauses, analysis } = result
+  const create = (myParty: PartyId, clauses: Clause[], analysis: AnalysisResult) => {
     const at = nowIso()
-    const p = analysis.parties
+    const p = analysis.parties.length >= 2 ? analysis.parties : prep?.parties ?? []
     const c: Contract = {
       id: uid('k'),
       title: fileName ? fileName.replace(/\.(pdf|docx|txt|md)$/i, '') : analysis.contractType,
@@ -128,37 +140,51 @@ export default function AnalyzePage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader eyebrow="Analizuj umowę" title="Sprawdź umowę, zanim ją podpiszesz" description="Wskażemy niejasne i ryzykowne zapisy, brakujące postanowienia oraz zaproponujemy alternatywne brzmienie. Ty decydujesz, co zmienić." />
 
-      {result ? (
+      {prep && !busy ? (
         <Card className="animate-fade-up p-5 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700" aria-hidden>
               <Check className="size-5" />
             </span>
             <div>
-              <h2 className="text-lg font-semibold text-ink-900">Analiza gotowa</h2>
+              <h2 className="text-lg font-semibold text-ink-900">Którą stroną umowy jesteś?</h2>
               <p className="mt-0.5 text-sm text-slate-600">
-                {result.analysis.contractType} · {result.clauses.length} zapisów · {result.analysis.findings.length} uwag
+                Ocenimy umowę z Twojej perspektywy: co jest dla Ciebie ryzykowne lub niekorzystne – także finansowo i biznesowo – i o co warto negocjować. Dokument ma {prep.clauses.length} zapisów.
               </p>
             </div>
           </div>
-          <fieldset className="mt-5">
-            <legend className="text-sm font-medium text-slate-800">Którą stroną umowy jesteś?</legend>
-            <p className="mt-0.5 text-xs text-slate-500">Dzięki temu uwagi i odpowiedzi asystenta będą opisane z Twojej perspektywy.</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {(['A', 'B'] as PartyId[]).map((id, i) => {
-                const p = result.analysis.parties[i]
-                return (
-                  <button key={id} type="button" onClick={() => create(id)} className="rounded-2xl p-4 text-left ring-1 ring-slate-200 transition hover:bg-brand-50 hover:ring-brand-400">
-                    <span className="block font-semibold text-ink-900">{p?.role ?? (i === 0 ? 'Strona pierwsza' : 'Strona druga')}</span>
-                    <span className="mt-0.5 block truncate text-sm text-slate-600">{p?.name ?? 'Nie rozpoznano nazwy'}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </fieldset>
-          <button type="button" onClick={() => setResult(null)} className="mt-4 text-sm font-medium text-slate-600 hover:text-ink-900">
-            Wróć i zmień dokument
-          </button>
+          {aiError && (
+            <Alert tone="error" className="mt-4" title="Ocena przez model AI nie powiodła się">
+              {aiError}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" onClick={() => analyzeAs(lastParty)}>
+                  Spróbuj ponownie
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => analyzeAs(lastParty, true)}>
+                  Użyj analizy podstawowej
+                </Button>
+              </div>
+            </Alert>
+          )}
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {(['A', 'B'] as PartyId[]).map((id, i) => {
+              const p = prep.parties[i]
+              return (
+                <button key={id} type="button" onClick={() => analyzeAs(id)} className="rounded-2xl p-4 text-left ring-1 ring-slate-200 transition hover:bg-brand-50 hover:ring-brand-400">
+                  <span className="block font-semibold text-ink-900">{p?.role ?? (i === 0 ? 'Strona pierwsza' : 'Strona druga')}</span>
+                  <span className="mt-0.5 block truncate text-sm text-slate-600">{p?.name ?? 'Nie rozpoznano nazwy'}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <button type="button" onClick={() => setPrep(null)} className="text-sm font-medium text-slate-600 hover:text-ink-900">
+              Wróć i zmień dokument
+            </button>
+            <button type="button" onClick={() => analyzeAs(null)} className="text-sm font-medium text-brand-700 hover:underline">
+              Oceń neutralnie
+            </button>
+          </div>
         </Card>
       ) : busy ? (
         <Card className="p-6" >
@@ -280,33 +306,20 @@ export default function AnalyzePage() {
               {error}
             </Alert>
           )}
-          {aiError && (
-            <Alert tone="error" className="mt-4" title="Ocena przez model AI nie powiodła się">
-              {aiError}
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button size="sm" variant="primary" onClick={() => run()}>
-                  Spróbuj ponownie
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => run(true)}>
-                  Użyj analizy podstawowej
-                </Button>
-              </div>
-            </Alert>
-          )}
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-center gap-1.5 text-xs text-slate-500">
               <Lock className="size-3.5 shrink-0" aria-hidden />
               {ai?.ai ? 'Plik jest odczytywany na Twoim urządzeniu, a tekst umowy zostanie przesłany do oceny przez model AI (OpenAI).' : 'Plik jest odczytywany na Twoim urządzeniu.'}
             </p>
-            <Button variant="accent" size="lg" onClick={() => run()} disabled={!text.trim() || reading} icon={<Sparkles className="size-4" />}>
+            <Button variant="accent" size="lg" onClick={start} disabled={!text.trim() || reading} icon={<Sparkles className="size-4" />}>
               Analizuj umowę
             </Button>
           </div>
         </Card>
       )}
 
-      {!result && !busy && (
+      {!prep && !busy && (
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           {[
             ['Ryzyka i niejasności', 'Zapisy, które mogą działać na Twoją niekorzyść lub być różnie rozumiane.'],

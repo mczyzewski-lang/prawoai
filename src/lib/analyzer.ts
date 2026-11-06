@@ -123,6 +123,15 @@ const RULES: Rule[] = [
       `${s.replace(/\.$/, '')}, przy czym łączna wysokość kar umownych nie może przekroczyć 10% wynagrodzenia określonego w umowie. Kary przysługują wyłącznie z tytułu okoliczności, za które zobowiązana Strona ponosi odpowiedzialność.`,
   },
   {
+    id: 'payment-upfront',
+    re: /((?:100\s*%|całość|całe\s+wynagrodzenie|całą\s+cenę|całej\s+kwoty)[^.]{0,80}(?:z\s+góry|przed\s+rozpoczęciem|w\s+dniu\s+podpisania))|((?:płatne|płatna|płatny)\s+z\s+góry)/i,
+    severity: 'medium',
+    category: 'płatność',
+    title: 'Płatność z góry bez podziału na etapy',
+    explanation: 'Wynagrodzenie jest płatne z góry, niezależnie od postępów prac. Jeśli coś pójdzie nie tak, odzyskanie pieniędzy może być trudne.',
+    suggestion: () => 'Wynagrodzenie płatne będzie w dwóch częściach: 30% w terminie 7 dni od podpisania umowy oraz 70% w terminie 14 dni od odbioru prac potwierdzonego przez Zamawiającego.',
+  },
+  {
     id: 'long-payment',
     re: /w\s+terminie\s+(\d{2,3})\s+dni/i,
     severity: (m, clause) => (parseInt(m[1], 10) >= 60 && /(płatn|zapłat|faktur|wynagrodz)/i.test(clause) ? 'medium' : null),
@@ -255,6 +264,15 @@ const TYPES: [RegExp, string][] = [
   [/współprac/i, 'Umowa o współpracy'],
 ]
 
+/** Waga uwagi w analizie podstawowej (bez modelu AI). */
+function weight(sev: FindingSeverity, category: Finding['category']): Pick<Finding, 'priority' | 'importance' | 'aspect'> {
+  return {
+    priority: sev === 'low' ? 'kosmetyka' : 'najważniejsze',
+    importance: sev === 'high' ? 5 : sev === 'medium' ? 3 : 2,
+    aspect: category === 'płatność' ? 'finansowe' : category === 'termin' ? 'operacyjne' : category === 'brak' ? 'biznesowe' : 'prawne',
+  }
+}
+
 function sentenceAround(text: string, index: number): string {
   const before = text.slice(0, index)
   const startCandidates = [before.lastIndexOf('. '), before.lastIndexOf('\n'), before.lastIndexOf('; ')]
@@ -373,6 +391,7 @@ export function analyzeContract(text: string, clauses: Clause[], sourceName: str
         suggestion: rule.suggestion(sentence, m),
         excerpt: sentence,
         status: 'pending',
+        ...weight(severity, rule.category),
       })
     }
   }
@@ -388,6 +407,7 @@ export function analyzeContract(text: string, clauses: Clause[], sourceName: str
         suggestion: miss.text,
         excerpt: miss.clauseTitle,
         status: 'pending',
+        ...weight(miss.severity, 'brak'),
       })
     }
   }

@@ -33,7 +33,9 @@ npm run typecheck  # tylko sprawdzenie typów
 Analiza w sekcji **Analizuj umowę** korzysta z modelu OpenAI, jeśli serwer ma ustawiony `OPENAI_API_KEY`:
 
 - Przeglądarka wysyła tekst umowy (podzielony na zapisy) do `POST /api/analyze` w `server/index.mjs`. Serwer wywołuje OpenAI Responses API ze strukturalnym wynikiem (JSON Schema) i strumieniowaniem. **Klucz nigdy nie trafia do przeglądarki.**
-- Model zwraca podsumowanie, strony, obowiązki, terminy, płatności oraz do 12 uwag. Każda uwaga ma poziom ryzyka, wyjaśnienie, dosłowny cytat z zapisu i propozycję nowego brzmienia. Brakujące postanowienia mają propozycję treści nowego zapisu.
+- Przed analizą użytkownik wskazuje, którą stroną umowy jest – ocena jest wykonywana z jego perspektywy (albo neutralnie). Model sprawdza nie tylko kwestie prawne, ale też finansowe (np. podział i terminy płatności, budżety, ukryte koszty), biznesowe (zakres, związanie umową, wyjście z umowy) i operacyjne (odbiory, poprawki, raportowanie).
+- Model zwraca podsumowanie, strony, obowiązki, terminy, płatności oraz 6–15 uwag. Każda uwaga ma wagę (**Najważniejsze** / **Kosmetyka**), istotność 1–5, charakter (prawne/finansowe/biznesowe/operacyjne), wyjaśnienie, „co to oznacza dla Ciebie”, dosłowny cytat z zapisu i propozycję nowego brzmienia. Brakujące postanowienia mają propozycję treści nowego zapisu.
+- Widok jak w edytorze dokumentów: zacytowany fragment jest zakreślony w tekście z numerem, a komentarz stoi na marginesie obok zapisu (na telefonie – pod zapisem). Kliknięcie zakreślenia otwiera komentarz i odwrotnie. Filtry: wszystkie otwarte / Najważniejsze / Kosmetyka / Rozpatrzone.
 - Instrukcja dla modelu wymaga neutralności wobec obu stron i zabrania powoływania się na numery przepisów czy orzeczenia.
 - Uwagi są przypinane do zapisów, a „Akceptuj” podmienia dokładnie zacytowany fragment (lub tworzy propozycję dla drugiej strony, jeśli umowa jest już udostępniona).
 - Bez klucza, albo po wybraniu „Użyj analizy podstawowej” przy błędzie, działa dotychczasowa analiza regułowa (`src/lib/analyzer.ts`). Panel analizy zawsze pokazuje, kto wykonał ocenę.

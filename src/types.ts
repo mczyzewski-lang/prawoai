@@ -85,7 +85,18 @@ export interface Finding {
   status: FindingStatus
   /** Brzmienie po edycji przez użytkownika. */
   editedText?: string
+  /** Waga uwagi: „najważniejsze” vs „kosmetyka”. */
+  priority?: FindingPriority
+  /** Istotność 1–5 z perspektywy użytkownika. */
+  importance?: number
+  /** Charakter uwagi – nie tylko prawny. */
+  aspect?: FindingAspect
+  /** Co to oznacza w praktyce dla użytkownika. */
+  impact?: string
 }
+
+export type FindingPriority = 'najważniejsze' | 'kosmetyka'
+export type FindingAspect = 'prawne' | 'finansowe' | 'biznesowe' | 'operacyjne'
 
 export interface AnalysisResult {
   createdAt: string
@@ -101,6 +112,8 @@ export interface AnalysisResult {
   /** Kto wykonał ocenę: model AI czy analiza regułowa. */
   engine?: 'ai' | 'rules'
   model?: string
+  /** Z czyjej perspektywy wykonano ocenę. */
+  perspective?: { role: string; name: string }
 }
 
 export interface ChatMessage {

@@ -1,4 +1,4 @@
-import type { AnalysisResult, Clause, Finding } from '../types'
+import type { AnalysisResult, Clause, Finding, FindingAspect, FindingPriority } from '../types'
 import { nowIso, uid, wordCount } from './utils'
 
 /**
@@ -30,10 +30,13 @@ export function getAiStatus(): Promise<AiStatus> {
 
 interface RawFinding {
   clauseIndex: number
-  severity: Finding['severity']
+  priority: FindingPriority
+  importance: number
+  aspect: FindingAspect
   category: Finding['category']
   title: string
   explanation: string
+  impact: string
   excerpt: string
   suggestion: string
 }
@@ -61,13 +64,19 @@ function locate(haystack: string, quote: string): string | undefined {
   return m?.[0]
 }
 
-export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string): Promise<AnalysisResult> {
+export interface Perspective {
+  role: string
+  name: string
+  otherRole: string
+}
+
+export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective): Promise<AnalysisResult> {
   let r: Response
   try {
     r = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })) }),
+      body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })), perspective }),
     })
   } catch {
     throw new AiAnalysisError('Brak połączenia z serwerem analizy.', 'network')
@@ -81,10 +90,15 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
     const clause = f.clauseIndex >= 0 ? clauses[f.clauseIndex] : undefined
     if (f.clauseIndex >= 0 && !clause) continue
     const excerpt = clause ? locate(clause.text, f.excerpt) : f.excerpt.trim() || f.title
+    const importance = Math.min(5, Math.max(1, Math.round(f.importance) || 3))
     findings.push({
       id: uid('f'),
       clauseId: clause?.id ?? null,
-      severity: f.severity,
+      severity: importance >= 4 ? 'high' : importance === 3 ? 'medium' : 'low',
+      priority: f.priority,
+      importance,
+      aspect: f.aspect,
+      impact: f.impact?.trim() || undefined,
       category: clause ? f.category : 'brak',
       title: f.title,
       explanation: f.explanation,
@@ -93,8 +107,7 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
       status: 'pending',
     })
   }
-  const rank = { high: 0, medium: 1, low: 2 }
-  findings.sort((a, b) => rank[a.severity] - rank[b.severity])
+  findings.sort((a, b) => (a.priority === b.priority ? 0 : a.priority === 'najważniejsze' ? -1 : 1) || (b.importance ?? 0) - (a.importance ?? 0))
 
   return {
     createdAt: nowIso(),
@@ -109,5 +122,6 @@ export async function analyzeWithAi(text: string, clauses: Clause[], sourceName:
     wordCount: wordCount(text),
     engine: 'ai',
     model: data.model,
+    perspective: perspective ? { role: perspective.role, name: perspective.name } : undefined,
   }
 }

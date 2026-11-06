@@ -12,6 +12,7 @@ import {
   History,
   Lock,
   MessageSquare,
+  MessageSquareText,
   Pencil,
   ScanSearch,
   Send,
@@ -26,7 +27,8 @@ import { cx, displayStatus, formatDate, formatDateTime, formatRelative, otherPar
 import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs } from '../ui'
 import { useToast } from '../Toast'
 import { ShareDialog } from '../ShareDialog'
-import { FindingCard, ProposalCard, SEVERITY_META } from './Cards'
+import { FindingCard, PRIORITY_META, ProposalCard, priorityOf } from './Cards'
+import { HighlightedText, matchesFilter, numberFindings, type FindingFilter, type NumberedFinding } from './Annotations'
 import { ProposalModal } from './ProposalModal'
 import { PrivateAssistant } from './PrivateAssistant'
 import { Diff } from './Diff'
@@ -60,6 +62,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [shareOpen, setShareOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [activeFinding, setActiveFinding] = useState<string | null>(null)
+  const [findingFilter, setFindingFilter] = useState<FindingFilter>('otwarte')
 
   const setPanel = (p: Panel) => {
     setPanelState(p)
@@ -83,6 +87,28 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const version = c.versions.length
   const openProposals = c.proposals.filter((p) => p.status === 'open')
   const pendingFindings = hasAnalysis ? c.analysis!.findings.filter((f) => f.status === 'pending').length : 0
+
+  const numbered = useMemo(() => (hasAnalysis ? numberFindings(c) : []), [c, hasAnalysis])
+  const visibleFindings = numbered.filter((x) => matchesFilter(x.f, findingFilter))
+  const analysisDesktop = hasAnalysis && desktopPanel === 'analiza'
+  const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches
+
+  const decideFinding_ = (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => {
+    updateContract(c.id, (x) => decideFinding(x, id, d, viewerName, text))
+    toast(findingToast(d, c.stage !== 'draft'))
+  }
+
+  /** Łączy zakreślenie w tekście z komentarzem (jak w edytorze dokumentów). */
+  const activateFinding = (id: string, from: 'mark' | 'card' | 'list') => {
+    setActiveFinding((cur) => (cur === id && from !== 'list' ? null : id))
+    if (from === 'mark') {
+      if (isDesktop() && desktopPanel !== 'analiza') setDesktopPanel('analiza')
+      if (isDesktop()) setTimeout(() => document.getElementById(`fc-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 60)
+    } else {
+      if (!isDesktop() && panel !== 'dokument') setPanel('dokument')
+      setTimeout(() => (document.getElementById(`fm-${id}`) ?? document.getElementById(`fc-${id}`))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
+    }
+  }
 
   const guard = (reason: string, fn: () => void) => {
     if (!hasAccount) return requireAccount(reason, fn)
@@ -165,7 +191,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const stageIdx = stages.findIndex((s) => s.id === c.stage)
 
   const panelContent = (p: Exclude<Panel, 'dokument'>) => {
-    if (p === 'analiza' && hasAnalysis) return <AnalysisPanel c={c} onSelect={selectClause} viewerName={viewerName} />
+    if (p === 'analiza' && hasAnalysis) return <AnalysisPanel c={c} numbered={numbered} filter={findingFilter} onFilter={setFindingFilter} onDecide={decideFinding_} onShow={(id) => activateFinding(id, 'list')} />
     if (p === 'negocjacje')
       return (
         <NegotiationPanel
@@ -283,8 +309,16 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
         tabs={[{ id: 'dokument', label: 'Dokument', icon: undefined }, ...tabs]}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
+      <Tabs<Exclude<Panel, 'dokument'>> label="Panel boczny" className="mb-4 hidden w-fit lg:flex" value={desktopPanel} onChange={(p) => setPanel(p)} tabs={tabs as { id: Exclude<Panel, 'dokument'>; label: string; icon: ReactNode; count?: number }[]} />
+
+      <div className={cx('grid gap-6', analysisDesktop ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]')}>
         <div className={cx(panel !== 'dokument' && 'hidden lg:block')}>
+          {analysisDesktop && (
+            <div className="mb-4 hidden lg:block">
+              <AnalysisOverview c={c} filter={findingFilter} onFilter={setFindingFilter} compactDetails />
+              <p className="mt-2 text-xs text-slate-500">Kliknij zakreślony fragment, aby zobaczyć komentarz, albo komentarz, aby wskazać fragment w tekście.</p>
+            </div>
+          )}
           <article className="rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200" aria-label="Treść umowy">
             <div className="border-b border-slate-200/70 px-5 py-6 text-center sm:px-10">
               <h2 className="font-serif text-xl font-semibold uppercase tracking-wide text-ink-900">{c.title}</h2>
@@ -301,7 +335,6 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   clause={cl}
                   c={c}
                   viewer={viewer}
-                  isOwner={isOwner}
                   selected={selectedId === cl.id}
                   onSelect={() => setSelectedId(selectedId === cl.id ? null : cl.id)}
                   directEdit={directEdit}
@@ -320,19 +353,33 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   }}
                   onResolve={resolve}
                   onCounter={counter}
-                  onFinding={(fid, d, text) => {
-                    updateContract(c.id, (x) => decideFinding(x, fid, d, viewerName, text))
-                    toast(findingToast(d, c.stage !== 'draft'))
-                  }}
+                  onFinding={decideFinding_}
                   canAct={!isSigned}
+                  marks={visibleFindings.filter((x) => x.f.clauseId === cl.id)}
+                  activeFinding={activeFinding}
+                  onActivateFinding={(id) => activateFinding(id, 'mark')}
+                  onActivateCard={(id) => activateFinding(id, 'card')}
+                  marginMode={analysisDesktop}
                 />
               ))}
             </div>
+            {analysisDesktop && visibleFindings.some((x) => !x.f.clauseId) && (
+              <section className="hidden border-t border-dashed border-slate-300 px-10 py-6 lg:block" aria-label="Brakujące postanowienia">
+                <h3 className="font-serif text-[17px] font-semibold text-ink-900">Brakujące postanowienia</h3>
+                <p className="mt-1 text-sm text-slate-600">Tych zapisów nie ma w umowie, a warto je dodać. Akceptacja doda nowy paragraf.</p>
+                <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                  {visibleFindings
+                    .filter((x) => !x.f.clauseId)
+                    .map((x) => (
+                      <FindingCard key={x.f.id} f={x.f} number={x.n} shared={c.stage !== 'draft'} collapsible active={activeFinding === x.f.id} onActivate={() => activateFinding(x.f.id, 'card')} onDecide={(d, t) => decideFinding_(x.f.id, d, t)} />
+                    ))}
+                </div>
+              </section>
+            )}
           </article>
         </div>
 
-        <aside className={cx('lg:sticky lg:top-20 lg:self-start', panel === 'dokument' && 'hidden lg:block')} aria-label="Panel boczny">
-          <Tabs<Exclude<Panel, 'dokument'>> label="Panel boczny" className="mb-4 hidden lg:flex" value={desktopPanel} onChange={(p) => setPanel(p)} tabs={tabs as { id: Exclude<Panel, 'dokument'>; label: string; icon: ReactNode; count?: number }[]} />
+        <aside className={cx('lg:sticky lg:top-20 lg:self-start', panel === 'dokument' && 'hidden lg:block', analysisDesktop && 'lg:hidden')} aria-label="Panel boczny">
           <div className="lg:max-h-[calc(100dvh-10rem)] lg:overflow-y-auto lg:pr-1 scrollbar-thin">{panelContent(panel === 'dokument' ? desktopPanel : (panel as Exclude<Panel, 'dokument'>))}</div>
         </aside>
       </div>
@@ -377,7 +424,6 @@ function ClauseBlock({
   index,
   c,
   viewer,
-  isOwner,
   selected,
   onSelect,
   directEdit,
@@ -389,12 +435,16 @@ function ClauseBlock({
   onCounter,
   onFinding,
   canAct,
+  marks,
+  activeFinding,
+  onActivateFinding,
+  onActivateCard,
+  marginMode,
 }: {
   clause: Clause
   index: number
   c: Contract
   viewer: PartyId
-  isOwner: boolean
   selected: boolean
   onSelect: () => void
   directEdit: boolean
@@ -406,87 +456,118 @@ function ClauseBlock({
   onCounter: (id: string) => void
   onFinding: (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => void
   canAct: boolean
+  /** Widoczne komentarze z analizy przypięte do tego zapisu. */
+  marks: NumberedFinding[]
+  activeFinding: string | null
+  onActivateFinding: (id: string) => void
+  onActivateCard: (id: string) => void
+  /** Komentarze na marginesie obok zapisu (desktop). */
+  marginMode: boolean
 }) {
-  const findings = isOwner && c.analysis ? c.analysis.findings.filter((f) => f.clauseId === clause.id) : []
-  const pendingFindings = findings.filter((f) => f.status === 'pending')
   const open = c.proposals.filter((p) => p.clauseId === clause.id && p.status === 'open')
   const comments = c.comments.filter((cm) => cm.clauseId === clause.id)
-  const worst = pendingFindings.find((f) => f.severity === 'high') ?? pendingFindings.find((f) => f.severity === 'medium') ?? pendingFindings[0]
+  const pending = marks.filter((m) => m.f.status === 'pending')
+  const hasKey = pending.some((m) => priorityOf(m.f) === 'najważniejsze')
+  const activeHere = marks.find((m) => m.f.id === activeFinding)
+  const shared = c.stage !== 'draft'
 
   return (
-    <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected ? 'bg-brand-50/60' : 'hover:bg-white/60')} aria-labelledby={`t-${clause.id}`}>
-      {worst && <span className={cx('absolute inset-y-4 left-0 w-1 rounded-r', SEVERITY_META[worst.severity].bar)} aria-hidden />}
-      <button type="button" onClick={onSelect} aria-expanded={selected} className="group flex w-full items-start justify-between gap-3 text-left">
-        <h3 id={`t-${clause.id}`} className="font-serif text-[17px] font-semibold text-ink-900 group-hover:text-brand-800">
-          § {index + 1}. {clause.title}
-        </h3>
-        <span className="flex shrink-0 flex-wrap justify-end gap-1">
-          {pendingFindings.length > 0 && (
-            <Badge tone={SEVERITY_META[worst!.severity].tone}>
-              <Lock className="size-3" aria-hidden /> {pendingFindings.length} {pendingFindings.length === 1 ? 'uwaga' : 'uwagi'}
-            </Badge>
+    <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected ? 'bg-brand-50/60' : 'hover:bg-white/60', marginMode && 'lg:pr-5')} aria-labelledby={`t-${clause.id}`}>
+      {pending.length > 0 && <span className={cx('absolute inset-y-4 left-0 w-1 rounded-r', hasKey ? PRIORITY_META.najważniejsze.bar : PRIORITY_META.kosmetyka.bar)} aria-hidden />}
+      <div className={cx(marginMode && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_340px]')}>
+        <div className="min-w-0">
+          <button type="button" onClick={onSelect} aria-expanded={selected} className="group flex w-full items-start justify-between gap-3 text-left">
+            <h3 id={`t-${clause.id}`} className="font-serif text-[17px] font-semibold text-ink-900 group-hover:text-brand-800">
+              § {index + 1}. {clause.title}
+            </h3>
+            <span className="flex shrink-0 flex-wrap justify-end gap-1">
+              {pending.length > 0 && (
+                <span className={cx('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset', hasKey ? PRIORITY_META.najważniejsze.badge : PRIORITY_META.kosmetyka.badge, marginMode && 'lg:hidden')}>
+                  <MessageSquareText className="size-3" aria-hidden /> {pending.length}
+                </span>
+              )}
+              {open.length > 0 && (
+                <Badge tone="violet">
+                  <GitPullRequestArrow className="size-3" aria-hidden /> {open.length}
+                </Badge>
+              )}
+              {comments.length > 0 && (
+                <Badge tone="slate">
+                  <MessageSquare className="size-3" aria-hidden /> {comments.length}
+                </Badge>
+              )}
+            </span>
+          </button>
+          <p className="mt-2 whitespace-pre-wrap font-serif text-[15.5px] leading-[1.75] text-slate-800">
+            {marks.length ? <HighlightedText text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} /> : clause.text}
+          </p>
+
+          {/* Aktywny komentarz pod zapisem – na telefonie (i na desktopie bez marginesu) */}
+          {activeHere && (
+            <div className={cx('animate-fade-up mt-3', marginMode && 'lg:hidden')}>
+              <FindingCard f={activeHere.f} number={activeHere.n} shared={shared} active anchored={activeHere.at >= 0} onDecide={(d, t) => onFinding(activeHere.f.id, d, t)} />
+            </div>
           )}
+
+          {selected && !readOnly && (
+            <div className="animate-fade-up mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" icon={<Pencil className="size-3.5" />} onClick={onPropose}>
+                {directEdit ? 'Edytuj zapis' : 'Zaproponuj zmianę'}
+              </Button>
+              {!directEdit && (
+                <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={onComment}>
+                  Skomentuj
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" icon={<Bot className="size-3.5" />} onClick={onAsk}>
+                Zapytaj asystenta
+              </Button>
+            </div>
+          )}
+
           {open.length > 0 && (
-            <Badge tone="violet">
-              <GitPullRequestArrow className="size-3" aria-hidden /> {open.length}
-            </Badge>
+            <div className="mt-3 space-y-2">
+              {open.map((p) => (
+                <ProposalCard key={p.id} p={p} viewer={viewer} canAct={canAct} onResolve={(d) => onResolve(p.id, d)} onCounter={() => onCounter(p.id)} />
+              ))}
+            </div>
           )}
-          {comments.length > 0 && (
-            <Badge tone="slate">
-              <MessageSquare className="size-3" aria-hidden /> {comments.length}
-            </Badge>
+
+          {selected && comments.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {comments.map((cm) => (
+                <li key={cm.id} className="flex gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-slate-200">
+                  <Avatar name={cm.authorName} tone={cm.authorPartyId === viewer ? 'brand' : 'violet'} size="sm" />
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      <span className="font-semibold text-ink-900">{cm.authorPartyId === viewer ? 'Ty' : cm.authorName}</span> · {formatRelative(cm.createdAt)}
+                    </p>
+                    <p className="mt-0.5 text-slate-800">{cm.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
-        </span>
-      </button>
-      <p className="mt-2 whitespace-pre-wrap font-serif text-[15.5px] leading-[1.7] text-slate-800">{clause.text}</p>
-
-      {selected && !readOnly && (
-        <div className="animate-fade-up mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="primary" icon={<Pencil className="size-3.5" />} onClick={onPropose}>
-            {directEdit ? 'Edytuj zapis' : 'Zaproponuj zmianę'}
-          </Button>
-          {!directEdit && (
-            <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={onComment}>
-              Skomentuj
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" icon={<Bot className="size-3.5" />} onClick={onAsk}>
-            Zapytaj asystenta
-          </Button>
         </div>
-      )}
 
-      {open.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {open.map((p) => (
-            <ProposalCard key={p.id} p={p} viewer={viewer} canAct={canAct} onResolve={(d) => onResolve(p.id, d)} onCounter={() => onCounter(p.id)} />
-          ))}
-        </div>
-      )}
-
-      {selected && comments.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {comments.map((cm) => (
-            <li key={cm.id} className="flex gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-slate-200">
-              <Avatar name={cm.authorName} tone={cm.authorPartyId === viewer ? 'brand' : 'violet'} size="sm" />
-              <div>
-                <p className="text-xs text-slate-500">
-                  <span className="font-semibold text-ink-900">{cm.authorPartyId === viewer ? 'Ty' : cm.authorName}</span> · {formatRelative(cm.createdAt)}
-                </p>
-                <p className="mt-0.5 text-slate-800">{cm.text}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {selected && findings.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {findings.map((f) => (
-            <FindingCard key={f.id} f={f} compact shared={c.stage !== 'draft'} onDecide={(d, t) => onFinding(f.id, d, t)} />
-          ))}
-        </div>
-      )}
+        {marginMode && (
+          <div className="hidden space-y-2 lg:block" aria-label={`Komentarze do zapisu: ${clause.title}`}>
+            {marks.map((m) => (
+              <FindingCard
+                key={m.f.id}
+                f={m.f}
+                number={m.n}
+                shared={shared}
+                collapsible
+                active={activeFinding === m.f.id}
+                anchored={m.at >= 0}
+                onActivate={() => onActivateCard(m.f.id)}
+                onDecide={(d, t) => onFinding(m.f.id, d, t)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
@@ -497,80 +578,68 @@ function findingToast(d: 'accept' | 'reject' | 'edit' | 'reset', shared: boolean
   return shared ? 'Propozycja zmiany wysłana do drugiej strony' : 'Zmiana wprowadzona – utworzono nową wersję'
 }
 
-function AnalysisPanel({ c, onSelect, viewerName }: { c: Contract; onSelect: (id: string) => void; viewerName: string }) {
-  const { updateContract } = useStore()
-  const toast = useToast()
-  const decide = (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => {
-    updateContract(c.id, (x) => decideFinding(x, id, d, viewerName, text))
-    toast(findingToast(d, c.stage !== 'draft'))
-  }
+function AnalysisOverview({ c, filter, onFilter, compactDetails }: { c: Contract; filter: FindingFilter; onFilter: (f: FindingFilter) => void; compactDetails?: boolean }) {
   const a = c.analysis!
-  const [filter, setFilter] = useState<'pending' | 'all'>('pending')
-  const list = a.findings.filter((f) => filter === 'all' || f.status === 'pending')
-  const missing = list.filter((f) => f.clauseId === null)
-  const anchored = list.filter((f) => f.clauseId !== null)
-  const counts = { high: a.findings.filter((f) => f.severity === 'high').length, medium: a.findings.filter((f) => f.severity === 'medium').length, low: a.findings.filter((f) => f.severity === 'low').length }
-
+  const pending = a.findings.filter((f) => f.status === 'pending')
+  const key = pending.filter((f) => priorityOf(f) === 'najważniejsze').length
+  const cosmetic = pending.length - key
+  const done = a.findings.length - pending.length
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold text-ink-900">Podsumowanie</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold text-ink-900">Podsumowanie analizy</h3>
           <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
             <Lock className="size-3" aria-hidden /> widoczne tylko dla Ciebie
           </span>
         </div>
+        {a.perspective && (
+          <p className="mt-1 text-xs font-medium text-brand-800">
+            Ocena z Twojej perspektywy: {a.perspective.role}
+            {a.perspective.name ? ` (${a.perspective.name})` : ''}
+          </p>
+        )}
         <p className="mt-2 text-sm leading-relaxed text-slate-700">{a.summary}</p>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          {(['high', 'medium', 'low'] as const).map((s) => (
-            <div key={s} className="rounded-xl bg-sand-50 px-2 py-2">
-              <p className="text-lg font-semibold text-ink-900">{counts[s]}</p>
-              <p className="text-[11px] text-slate-600">{SEVERITY_META[s].label}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
           {a.engine === 'ai' ? `Ocena wykonana przez model AI (OpenAI${a.model ? `, ${a.model}` : ''}) na podstawie treści dokumentu „${a.sourceName}”. Model może się mylić – sprawdź uwagi przed użyciem.` : `Analiza podstawowa: automatyczne wyszukiwanie typowych zapisów i braków w dokumencie „${a.sourceName}”.`}{' '}
           Nie zastępuje porady prawnika.
         </p>
-      </div>
 
-      <details className="group rounded-2xl bg-white ring-1 ring-slate-200" open>
-        <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl p-4 font-semibold text-ink-900">
-          Strony, obowiązki, terminy i płatności
-          <span className="text-xs font-normal text-slate-500 group-open:hidden">rozwiń</span>
-        </summary>
-        <div className="space-y-4 px-4 pb-4 text-sm">
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Strony</p>
-            {a.parties.length ? (
-              <ul className="space-y-1">
-                {a.parties.map((p) => (
-                  <li key={p.role}>
-                    <span className="font-medium text-ink-900">{p.role}:</span> {p.name}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-slate-500">Nie udało się jednoznacznie rozpoznać stron.</p>
-            )}
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Główne obowiązki</p>
-            {a.obligations.some((o) => o.items.length) ? (
-              a.obligations.map((o) => (
-                <div key={o.party} className="mb-2">
-                  <p className="font-medium text-ink-900">{o.party}</p>
-                  <ul className="ml-4 list-disc space-y-0.5 text-slate-700">
-                    {o.items.length ? o.items.map((it) => <li key={it}>{it}</li>) : <li className="text-slate-500">nie wskazano wprost</li>}
-                  </ul>
-                </div>
-              ))
-            ) : (
-              <p className="text-slate-500">Nie znaleziono zdań opisujących obowiązki wprost („zobowiązuje się…”).</p>
-            )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <details className="group mt-3 border-t border-slate-100 pt-3" open={!compactDetails}>
+          <summary className="cursor-pointer list-none text-sm font-medium text-brand-700 hover:underline">
+            <span className="group-open:hidden">Pokaż strony, obowiązki, terminy i płatności</span>
+            <span className="hidden group-open:inline">Ukryj szczegóły</span>
+          </summary>
+          <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Strony</p>
+              {a.parties.length ? (
+                <ul className="space-y-1">
+                  {a.parties.map((p) => (
+                    <li key={p.role}>
+                      <span className="font-medium text-ink-900">{p.role}:</span> {p.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-slate-500">Nie udało się jednoznacznie rozpoznać stron.</p>
+              )}
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Główne obowiązki</p>
+              {a.obligations.some((o) => o.items.length) ? (
+                a.obligations.map((o) => (
+                  <div key={o.party} className="mb-2">
+                    <p className="font-medium text-ink-900">{o.party}</p>
+                    <ul className="ml-4 list-disc space-y-0.5 text-slate-700">
+                      {o.items.length ? o.items.map((it) => <li key={it}>{it}</li>) : <li className="text-slate-500">nie wskazano wprost</li>}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-500">Nie znaleziono zdań opisujących obowiązki wprost.</p>
+              )}
+            </div>
             <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Terminy</p>
               {a.dates.length ? (
@@ -603,40 +672,54 @@ function AnalysisPanel({ c, onSelect, viewerName }: { c: Contract; onSelect: (id
               )}
             </div>
           </div>
-        </div>
-      </details>
-
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-semibold text-ink-900">Uwagi do zapisów</h3>
-        <Tabs<'pending' | 'all'>
-          label="Filtr uwag"
-          value={filter}
-          onChange={setFilter}
-          tabs={[
-            { id: 'pending', label: 'Do decyzji', count: a.findings.filter((f) => f.status === 'pending').length },
-            { id: 'all', label: 'Wszystkie' },
-          ]}
-        />
+        </details>
       </div>
+
+      <div role="group" aria-label="Filtr komentarzy" className="flex flex-wrap gap-1.5">
+        {(
+          [
+            ['otwarte', 'Wszystkie otwarte', pending.length, 'bg-ink-900 text-white ring-ink-900'],
+            ['najważniejsze', 'Najważniejsze', key, 'bg-rose-600 text-white ring-rose-600'],
+            ['kosmetyka', 'Kosmetyka', cosmetic, 'bg-sky-600 text-white ring-sky-600'],
+            ['rozpatrzone', 'Rozpatrzone', done, 'bg-slate-700 text-white ring-slate-700'],
+          ] as [FindingFilter, string, number, string][]
+        ).map(([id, label, n, activeCls]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={filter === id}
+            onClick={() => onFilter(id)}
+            className={cx('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition', filter === id ? activeCls : 'bg-white text-slate-700 ring-slate-300 hover:ring-slate-400')}
+          >
+            {label} <span className={cx('rounded-full px-1.5 text-xs', filter === id ? 'bg-white/20' : 'bg-slate-100')}>{n}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Lista komentarzy (telefon / wąski ekran). */
+function AnalysisPanel({ c, numbered, filter, onFilter, onDecide, onShow }: { c: Contract; numbered: NumberedFinding[]; filter: FindingFilter; onFilter: (f: FindingFilter) => void; onDecide: (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => void; onShow: (id: string) => void }) {
+  const list = numbered.filter((x) => matchesFilter(x.f, filter))
+  const anchored = list.filter((x) => x.f.clauseId)
+  const missing = list.filter((x) => !x.f.clauseId)
+  const shared = c.stage !== 'draft'
+  return (
+    <div className="space-y-4">
+      <AnalysisOverview c={c} filter={filter} onFilter={onFilter} compactDetails />
       {list.length === 0 ? (
-        <EmptyState icon={<CheckCircle2 className="size-6" />} title="Wszystkie uwagi rozpatrzone">
-          Możesz teraz zaprosić drugą stronę do negocjacji.
+        <EmptyState icon={<CheckCircle2 className="size-6" />} title={filter === 'rozpatrzone' ? 'Nic jeszcze nie rozpatrzono' : 'Brak otwartych komentarzy w tej grupie'}>
+          {filter === 'rozpatrzone' ? 'Zaakceptowane i odrzucone komentarze pojawią się tutaj.' : 'Możesz zaprosić drugą stronę do negocjacji.'}
         </EmptyState>
       ) : (
         <div className="space-y-3">
-          {anchored.map((f) => (
-            <FindingCard
-              key={f.id}
-              f={f}
-              clause={c.clauses.find((x) => x.id === f.clauseId)}
-              onSelectClause={() => onSelect(f.clauseId!)}
-              shared={c.stage !== 'draft'}
-              onDecide={(d, text) => decide(f.id, d, text)}
-            />
+          {anchored.map((x) => (
+            <FindingCard key={x.f.id} f={x.f} number={x.n} anchored={x.at >= 0} clause={c.clauses.find((cl) => cl.id === x.f.clauseId)} onSelectClause={() => onShow(x.f.id)} shared={shared} onDecide={(d, t) => onDecide(x.f.id, d, t)} />
           ))}
           {missing.length > 0 && <h4 className="pt-2 text-sm font-semibold text-ink-900">Brakujące postanowienia</h4>}
-          {missing.map((f) => (
-            <FindingCard key={f.id} f={f} shared={c.stage !== 'draft'} onDecide={(d, text) => decide(f.id, d, text)} />
+          {missing.map((x) => (
+            <FindingCard key={x.f.id} f={x.f} number={x.n} shared={shared} onDecide={(d, t) => onDecide(x.f.id, d, t)} />
           ))}
         </div>
       )}
