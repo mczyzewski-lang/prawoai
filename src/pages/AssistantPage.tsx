@@ -232,7 +232,7 @@ export default function AssistantPage() {
               <div ref={endRef} />
             </div>
 
-            <div className="safe-bottom border-t border-slate-100 bg-white p-3 sm:p-4 lg:rounded-b-3xl">
+            <div className="safe-pb sm:safe-pb-4 border-t border-slate-100 bg-white px-3 pt-3 sm:px-4 sm:pt-4 lg:rounded-b-3xl">
               {attachError && (
                 <Alert tone="error" className="mb-2" onClose={() => setAttachError(null)}>
                   {attachError}

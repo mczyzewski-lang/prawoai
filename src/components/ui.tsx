@@ -247,7 +247,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="safe-bottom flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-3 sm:flex-row sm:justify-end">{footer}</div>}
+        {footer && <div className="safe-pb flex flex-col-reverse gap-2 border-t border-slate-100 px-5 pt-3 sm:flex-row sm:justify-end">{footer}</div>}
       </div>
     </div>
   )

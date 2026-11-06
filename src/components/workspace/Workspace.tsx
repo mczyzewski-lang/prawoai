@@ -356,11 +356,6 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           {c.reviewNotice}
         </Alert>
       )}
-      {isDraft && isOwner && (
-        <Alert tone="info" className="mb-4">
-          To Twój projekt – możesz swobodnie edytować zapisy. Po wysłaniu do drugiej strony zmiany będą wymagały akceptacji obu stron.
-        </Alert>
-      )}
 
       {/* Zakładki mobilne */}
       <Tabs<Panel>
@@ -417,6 +412,11 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               <AnalysisOverview c={c} filter={findingFilter} onFilter={setFindingFilter} compactDetails />
               <p className="mt-2 text-xs text-slate-500">Kliknij zakreślony fragment, aby zobaczyć komentarz, albo komentarz, aby wskazać fragment w tekście.</p>
             </div>
+          )}
+          {isDraft && isOwner && (
+            <Alert tone="info" className="mb-4">
+              To Twój projekt – możesz swobodnie edytować zapisy. Po wysłaniu do drugiej strony zmiany będą wymagały akceptacji obu stron.
+            </Alert>
           )}
           <article className="rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200" aria-label="Treść umowy">
             <DocumentHeader c={c} />

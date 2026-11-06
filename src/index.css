@@ -48,6 +48,15 @@
   scrollbar-width: thin;
 }
 
+/* Dolny odstęp dla kontenerów z własnym paddingiem – nie mniejszy niż 0,75rem / 1rem i strefa bezpieczna iPhone'a. */
+@utility safe-pb {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@utility safe-pb-4 {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
 @utility safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
