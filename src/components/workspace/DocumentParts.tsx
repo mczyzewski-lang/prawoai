@@ -16,7 +16,7 @@ export function BrandMark({ className }: { className?: string }) {
   )
 }
 
-export function DocumentHeader({ c }: { c: Contract }) {
+export function DocumentHeader({ c, eyebrow }: { c: Contract; eyebrow?: string }) {
   const version = c.versions.length
   const date = c.versions[version - 1]?.createdAt ?? c.createdAt
   const kind = documentKind(c)
@@ -32,7 +32,7 @@ export function DocumentHeader({ c }: { c: Contract }) {
           Wersja {version} · {formatDate(date)}
         </span>
       </div>
-      <p className="mt-8 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-700">{stageLabel(c)}</p>
+      <p className="mt-8 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-700">{eyebrow ?? stageLabel(c)}</p>
       <h2 className="mx-auto mt-2 max-w-2xl text-balance text-center font-serif text-2xl font-semibold leading-tight text-ink-900 sm:text-[30px]">{c.title}</h2>
       {showKind && <p className="mt-1.5 text-center font-serif text-[15px] italic text-slate-500">{kind}</p>}
       <div className="mx-auto mt-5 flex w-24 items-center gap-1.5" aria-hidden>

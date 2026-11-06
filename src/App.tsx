@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage'
 import TemplatesPage from './pages/TemplatesPage'
 import WizardPage from './pages/WizardPage'
 import TemplateDetailPage from './pages/TemplateDetailPage'
+import TemplatePreviewPage from './pages/TemplatePreviewPage'
 import ContractsPage from './pages/ContractsPage'
 import AnalyzePage from './pages/AnalyzePage'
 import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="wzory" element={<TemplatesPage />} />
         <Route path="wzory/:templateId" element={<TemplateDetailPage />} />
         <Route path="wzory/:templateId/kreator" element={<WizardPage />} />
+        <Route path="wzory/:templateId/podglad" element={<TemplatePreviewPage />} />
         <Route path="analiza" element={<AnalyzePage />} />
         <Route path="umowy" element={<ContractsPage />} />
         <Route path="umowy/:id" element={<OwnerContractPage />} />

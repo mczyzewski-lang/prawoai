@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { BadgeCheck, Check, Clock, FileWarning, ListChecks, PenLine, Send, Sparkles, Users } from 'lucide-react'
+import { BadgeCheck, Check, Clock, FileText, FileWarning, ListChecks, PenLine, Send, Sparkles, Users } from 'lucide-react'
 import { getCategory, getTemplate, RELATION_LABELS, type TemplateDefinition } from '../data/templates'
 import { DEFAULT_ANSWERS, generateClauses } from '../lib/contractGenerator'
 import { useGenerate } from '../components/GenerateOverlay'
@@ -129,17 +129,25 @@ export default function TemplateDetailPage() {
                 </button>
               </div>
             </form>
-            <p className="mt-3 text-sm text-slate-500">
-              Wolisz formularz?{' '}
-              <Link to={`/wzory/${t.id}/kreator`} className="font-medium text-brand-700 hover:underline">
-                Wypełnij krok po kroku
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+              <Link to={`/wzory/${t.id}/podglad`} className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-900 ring-1 ring-slate-300 transition hover:ring-slate-400">
+                <FileText className="size-4 text-brand-700" aria-hidden /> Pokaż wzór umowy (PDF)
               </Link>
-            </p>
+              <p className="text-sm text-slate-500">
+                Wolisz formularz?{' '}
+                <Link to={`/wzory/${t.id}/kreator`} className="font-medium text-brand-700 hover:underline">
+                  Wypełnij krok po kroku
+                </Link>
+              </p>
+            </div>
           </div>
 
           <div className="relative py-6">
             <div className="absolute inset-x-6 top-10 bottom-0 rounded-[3rem] bg-brand-200/30 blur-3xl" aria-hidden />
-            <TemplateCover t={t} className="relative" />
+            <Link to={`/wzory/${t.id}/podglad`} aria-label="Pokaż wzór umowy" className="relative block rounded-3xl">
+              <TemplateCover t={t} className="relative" />
+              <span className="mt-6 block text-center text-sm font-medium text-slate-600">Kliknij, aby zobaczyć pełny wzór</span>
+            </Link>
           </div>
         </div>
       </section>
