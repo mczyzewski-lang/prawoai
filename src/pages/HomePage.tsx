@@ -1,11 +1,13 @@
-import { useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Bookmark, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Sparkles, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { AlertCircle, ArrowRight, Bookmark, Check, ChevronDown, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Sparkles, Upload } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { ButtonLink, EmptyState, StatusBadge } from '../components/ui'
 import { displayStatus, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
 import { QUICK_STARTS } from '../lib/intake'
 import { useGenerate } from '../components/GenerateOverlay'
+import { MentionTextarea } from '../components/MentionTextarea'
+import type { MyTemplate } from '../types'
 import { extractText, ExtractError } from '../lib/extract'
 import { HANDOFF_KEY } from './AnalyzePage'
 import type { Contract } from '../types'
@@ -19,7 +21,18 @@ export default function HomePage() {
   const [myTpl, setMyTpl] = useState<string | null>(null)
   const myTemplates = state.myTemplates ?? []
   const selectedTpl = myTemplates.find((t) => t.id === myTpl)
-  const { generate, overlay, busy } = useGenerate()
+  const { generate, overlay, busy, contacts } = useGenerate()
+  // „Użyj wzoru” z Moich umów: /?wzor=<id>
+  const [params, setParams] = useSearchParams()
+  useEffect(() => {
+    const id = params.get('wzor')
+    if (!id) return
+    if (myTemplates.some((t) => t.id === id)) {
+      setMyTpl(id)
+      requestAnimationFrame(() => document.getElementById('home-prompt')?.focus())
+    }
+    setParams({}, { replace: true })
+  }, [params, setParams, myTemplates])
   const start = (q: string, tplId: string | null = null) => {
     if (q.trim()) void generate(q, { myTemplateId: tplId })
   }
@@ -53,57 +66,29 @@ export default function HomePage() {
               <label htmlFor="home-prompt" className="sr-only">
                 Opisz umowę, którą chcesz przygotować
               </label>
-              <textarea
+              <MentionTextarea
                 id="home-prompt"
                 rows={4}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    start(prompt, myTpl)
-                  }
-                }}
-                placeholder={selectedTpl ? `Wklej dane drugiej strony do wzoru „${selectedTpl.name}” – np. nazwa, adres, NIP` : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł. Zależy mi na płatności po wykonaniu.'}
-                className="w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-[16px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                onChange={setPrompt}
+                onSubmit={() => start(prompt, myTpl)}
+                contacts={contacts}
+                placeholder={selectedTpl ? `Wklej dane drugiej strony do wzoru „${selectedTpl.name}” albo wskaż ją przez @` : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł. Zależy mi na płatności po wykonaniu.'}
+                boxClassName="rounded-xl border-0 px-3 py-2.5 text-[16px] leading-6"
+                inputClassName="text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
-              <div className="flex justify-end px-1 pb-1">
-                <button type="submit" disabled={!prompt.trim() || busy} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
+              <div className="flex items-center justify-end gap-2 px-1 pb-1">
+                <span className="mr-auto hidden text-xs text-slate-400 sm:inline">@ – osoba z konta</span>
+                <MyTemplatePicker templates={myTemplates} value={myTpl} onChange={(id) => {
+                  setMyTpl(id)
+                  document.getElementById('home-prompt')?.focus()
+                }} />
+                <button type="submit" disabled={!prompt.trim() || busy} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
                   <Sparkles className="size-4" aria-hidden /> Generuj bezpłatnie
                 </button>
               </div>
             </form>
-            {selectedTpl && (
-              <p className="relative mt-2 flex items-center gap-1.5 text-sm text-brand-200">
-                <Bookmark className="size-4" aria-hidden /> Tworzysz z wzoru „{selectedTpl.name}”
-                <button type="button" onClick={() => setMyTpl(null)} className="ml-1 rounded px-1 text-white/70 underline hover:text-white">
-                  zmień
-                </button>
-              </p>
-            )}
-            {myTemplates.length > 0 && (
-              <div className="relative mt-4">
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Twoje wzory</p>
-                <div className="flex flex-wrap gap-2">
-                  {myTemplates.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      aria-pressed={myTpl === t.id}
-                      onClick={() => {
-                        setMyTpl(myTpl === t.id ? null : t.id)
-                        document.getElementById('home-prompt')?.focus()
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition ${myTpl === t.id ? 'bg-brand-400 text-ink-950 ring-brand-300' : 'bg-white/10 text-white ring-white/15 hover:bg-white/20'}`}
-                    >
-                      <Bookmark className="size-3.5" aria-hidden /> {t.name}
-                    </button>
-                  ))}
-                </div>
-                <p className="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Nowa umowa</p>
-              </div>
-            )}
-            <div className={`relative flex flex-wrap gap-2 ${myTemplates.length ? '' : 'mt-4'}`}>
+            <div className="relative mt-4 flex flex-wrap gap-2">
               {QUICK_STARTS.map((q) => (
                 <button
                   key={q.label}
@@ -354,5 +339,70 @@ function HomeRow({ c }: { c: Contract }) {
         <span className="hidden text-sm text-slate-600 md:block">{formatRelative(lastActivity(c))}</span>
       </Link>
     </li>
+  )
+}
+
+/** Wybór własnego wzoru obok „Generuj bezpłatnie”. */
+function MyTemplatePicker({ templates, value, onChange }: { templates: MyTemplate[]; value: string | null; onChange: (id: string | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = templates.find((t) => t.id === value)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return (
+    <div className="relative min-w-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`inline-flex h-10 min-w-0 max-w-[13rem] items-center gap-1.5 rounded-xl px-3 text-sm font-medium ring-1 ring-inset transition ${selected ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'text-slate-700 ring-slate-300 hover:bg-slate-50'}`}
+      >
+        <Bookmark className="size-4 shrink-0" aria-hidden />
+        <span className="truncate">{selected ? selected.name : 'Mój wzór'}</span>
+        <ChevronDown className="size-3.5 shrink-0 opacity-60" aria-hidden />
+      </button>
+      {open && (
+        <div role="menu" className="animate-fade-up absolute right-0 top-full z-40 mt-1.5 w-72 rounded-2xl bg-white p-1.5 text-left shadow-xl ring-1 ring-slate-200">
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Twoje wzory</p>
+          {templates.length === 0 ? (
+            <p className="px-3 pb-2 text-sm text-slate-600">
+              Nie masz jeszcze własnych wzorów. Otwórz umowę i wybierz „Zapisz jako mój wzór” albo dodaj go w{' '}
+              <Link to="/umowy#moje-wzory" className="font-medium text-brand-700 hover:underline">
+                Moich umowach
+              </Link>
+              .
+            </p>
+          ) : (
+            <>
+              <button role="menuitemradio" aria-checked={!value} type="button" onClick={() => { onChange(null); setOpen(false) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+                <span className="grid size-4 place-items-center">{!value && <Check className="size-4 text-brand-600" aria-hidden />}</span>
+                Bez wzoru – nowa umowa
+              </button>
+              {templates.map((t) => (
+                <button key={t.id} role="menuitemradio" aria-checked={value === t.id} type="button" onClick={() => { onChange(t.id); setOpen(false) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50">
+                  <span className="grid size-4 shrink-0 place-items-center">{value === t.id && <Check className="size-4 text-brand-600" aria-hidden />}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{t.name}</span>
+                </button>
+              ))}
+              <Link to="/umowy#moje-wzory" className="mt-1 block border-t border-slate-100 px-3 pb-1 pt-2 text-xs font-medium text-brand-700 hover:underline">
+                Zarządzaj wzorami
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

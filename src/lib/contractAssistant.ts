@@ -160,3 +160,21 @@ export function collectContacts(profileOwn: SavedParty | undefined, contracts: C
   for (const c of contracts) for (const p of c.parties) add({ kind: p.kind, name: p.name, address: p.address, idNumber: p.idNumber, email: p.email, representative: p.representative })
   return out
 }
+
+/** Zamienia „@Nazwa” na nazwę z danymi (adres, NIP/PESEL…), aby generator mógł je wpisać do umowy. */
+export function expandMentions(text: string, contacts: Mention[]): string {
+  const sorted = [...contacts].sort((a, b) => b.label.length - a.label.length)
+  let out = text
+  for (const c of sorted) {
+    const d = c.data
+    const details = [
+      d.address && `adres: ${d.address}`,
+      d.idNumber && `${d.kind === 'firma' ? 'NIP/KRS' : 'PESEL'}: ${d.idNumber}`,
+      d.kind === 'firma' && d.representative && `reprezentowana przez: ${d.representative}`,
+      d.email && `e-mail: ${d.email}`,
+    ].filter(Boolean)
+    const full = details.length ? `${c.label} (${d.kind === 'firma' ? 'firma' : 'osoba fizyczna'}; ${details.join(', ')})` : c.label
+    out = out.split(`@${c.label}`).join(full)
+  }
+  return out
+}

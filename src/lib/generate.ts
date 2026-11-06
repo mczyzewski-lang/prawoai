@@ -31,6 +31,8 @@ export interface GenerateInput {
   myTemplate?: MyTemplate
   /** Wzór wskazany na stronie wzoru – podpowiedź dla modelu. */
   templateHint?: string
+  /** Osoby wskazane przez „@” – dane z konta (pierwsza inna niż Ty = druga strona). */
+  mentioned?: SavedParty[]
 }
 
 export type GenerateOutcome = { kind: 'contract'; contract: Contract } | { kind: 'redirect'; to: string }
@@ -46,6 +48,35 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
   const prompt = input.prompt.trim()
 
   // Bez modelu AI: umowa ze wzoru z tym, co da się odczytać z opisu, i asystent w trybie podstawowym.
+  const toIntake = (d: SavedParty): IntakeParty => ({ kind: d.kind, name: d.name, address: d.address ?? '', idNumber: d.idNumber ?? '', email: d.email ?? '', representative: d.representative ?? '' })
+  const counterparty = (input.mentioned ?? []).find((m) => m.name.trim().toLowerCase() !== input.ownParty?.name.trim().toLowerCase())
+
+  // Bez modelu AI, z Twojego wzoru: podmieniamy dane drugiej strony na wskazane przez „@”.
+  if (!input.ai && input.myTemplate) {
+    onStage('drafting')
+    const mt = input.myTemplate
+    const state = stateFromMyTemplate(mt)
+    if (counterparty) {
+      const other = toIntake(counterparty)
+      if (mt.ownerPartyId === 'A') state.partyB = other
+      else state.partyA = other
+    }
+    let c = buildContractFromMyTemplate(mt, state, input.authorName)
+    c = await retargetMyTemplateContract(c, mt, false)
+    const msgs: ChatMessage[] = [
+      { id: uid('m'), role: 'user', text: prompt, createdAt: nowIso() },
+      {
+        id: uid('m'),
+        role: 'assistant',
+        text: counterparty
+          ? `Przygotowałem umowę z Twojego wzoru „${mt.name}” i wpisałem dane: ${counterparty.name}. Sprawdź kolumny stron i zapisy z miejscami do uzupełnienia.`
+          : `Przygotowałem umowę z Twojego wzoru „${mt.name}”. Uzupełnij dane drugiej strony przyciskiem „Edytuj” przy kolumnach (albo wskaż ją przez „@” w wiadomości).`,
+        createdAt: nowIso(),
+      },
+    ]
+    return { kind: 'contract', contract: { ...c, privateChats: { [c.ownerPartyId]: msgs } } }
+  }
+
   if (!input.ai) {
     const id = input.templateHint ?? guessTemplate(prompt)
     const t = getTemplate(id ?? undefined)
@@ -58,7 +89,8 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
     if (amount) state.answers.amount = amount
     const wishes = prompt.replace(/^Chcę utworzyć:[^.]*\.\s*/i, '').replace(/^Zależy mi na:\s*/i, '').trim()
     if (wishes) state.answers.extra = `Ustalenia, na których zależy Stronom: ${wishes.replace(/[.\s]+$/, '')}.`
-    if (input.ownParty) state.partyA = { ...input.ownParty }
+    if (input.ownParty) state.partyA = toIntake(input.ownParty)
+    if (counterparty) state.partyB = toIntake(counterparty)
     let c = buildContractFromIntake(state, input.authorName)
     const missing = [!c.parties[0].name && `dane strony „${t.roles[0]}”`, !c.parties[1].name && `dane strony „${t.roles[1]}”`, `przedmiot umowy (§ 2)`, !amount && t.fields.includes('amount') && 'kwotę'].filter(Boolean)
     const msgs: ChatMessage[] = [

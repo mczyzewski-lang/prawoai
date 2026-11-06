@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { MentionTextarea } from '../components/MentionTextarea'
+import { collectContacts, expandMentions } from '../lib/contractAssistant'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowUp, BookmarkCheck, Building2, Check, ChevronDown, Circle, FilePlus2, LayoutTemplate, ListChecks, RotateCcw, Sparkles, User } from 'lucide-react'
 import { useStore } from '../store/AppStore'
@@ -50,6 +52,7 @@ const msg = (role: ChatMessage['role'], text: string, extra: Partial<ChatMessage
 
 export default function NewContractPage() {
   const { state: app, updateProfile, upsertContract } = useStore()
+  const contacts = useMemo(() => collectContacts(app.profile.ownParty, app.contracts), [app.profile.ownParty, app.contracts])
   const persona = personaFor(app.profile)
   const toast = useToast()
   const navigate = useNavigate()
@@ -81,7 +84,7 @@ export default function NewContractPage() {
   }, [data.messages.length, thinking])
 
   const send = async (text: string, base?: Saved) => {
-    const value = text.trim()
+    const value = expandMentions(text.trim(), contacts)
     if (!value || thinking) return
     const current = base ?? data
     const userMsg = msg('user', value)
@@ -300,19 +303,18 @@ export default function NewContractPage() {
               <label htmlFor="intake-input" className="sr-only">
                 Twoja wiadomość
               </label>
-              <textarea
+              <MentionTextarea
                 id="intake-input"
+                className="min-w-0 flex-1"
                 rows={data.messages.length ? 1 : 2}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    void send(input)
-                  }
-                }}
-                placeholder={data.messages.length ? 'Odpowiedz lub wklej dane…' : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł'}
-                className="max-h-48 min-h-11 flex-1 resize-none rounded-xl border border-slate-300 px-3.5 py-2.5 text-[15px] focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
+                onChange={setInput}
+                onSubmit={() => void send(input)}
+                contacts={contacts}
+                listPlacement="above"
+                placeholder={data.messages.length ? 'Odpowiedz, wklej dane albo wskaż osobę przez @…' : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł (@ – osoba z konta)'}
+                boxClassName="max-h-48 min-h-11 rounded-xl px-3.5 py-2.5 text-[15px] leading-6"
+                inputClassName="border-slate-300 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
               />
               <Button type="submit" variant="accent" aria-label="Wyślij" disabled={!input.trim() || thinking} icon={<ArrowUp className="size-5" />} className="h-11 w-11 px-0" />
             </form>

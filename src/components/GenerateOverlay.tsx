@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, Loader2 } from 'lucide-react'
 import { useStore } from '../store/AppStore'
@@ -7,6 +7,7 @@ import { getAiStatus } from '../lib/aiAnalysis'
 import { generateFromPrompt, type GenerateStage } from '../lib/generate'
 import { IntakeError } from '../lib/intake'
 import { personaFor } from '../lib/persona'
+import { collectContacts, expandMentions } from '../lib/contractAssistant'
 import { cx } from '../lib/utils'
 
 const STAGES: { id: GenerateStage; label: string }[] = [
@@ -21,6 +22,8 @@ export function useGenerate() {
   const navigate = useNavigate()
   const toast = useToast()
   const [stage, setStage] = useState<GenerateStage | null>(null)
+  /** Osoby z konta do wskazania przez „@”. */
+  const contacts = useMemo(() => collectContacts(state.profile.ownParty, state.contracts), [state.profile.ownParty, state.contracts])
 
   const generate = async (prompt: string, opts: { templateHint?: string; myTemplateId?: string | null } = {}) => {
     if (stage) return
@@ -29,7 +32,8 @@ export function useGenerate() {
     try {
       const out = await generateFromPrompt(
         {
-          prompt,
+          prompt: expandMentions(prompt, contacts),
+          mentioned: contacts.filter((c) => prompt.includes(`@${c.label}`)).map((c) => c.data),
           ai,
           authorName: state.profile.name,
           ownParty: state.profile.ownParty,
@@ -74,5 +78,5 @@ export function useGenerate() {
     </div>
   ) : null
 
-  return { generate, overlay, busy: !!stage }
+  return { generate, overlay, busy: !!stage, contacts }
 }
