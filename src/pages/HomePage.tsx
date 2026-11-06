@@ -1,17 +1,17 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Bookmark, ArrowUp, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Upload } from 'lucide-react'
+import { AlertCircle, ArrowRight, Bookmark, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Sparkles, Upload } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { ButtonLink, EmptyState, StatusBadge } from '../components/ui'
 import { displayStatus, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
 import { QUICK_STARTS } from '../lib/intake'
+import { useGenerate } from '../components/GenerateOverlay'
 import { extractText, ExtractError } from '../lib/extract'
 import { HANDOFF_KEY } from './AnalyzePage'
 import type { Contract } from '../types'
 
 export default function HomePage() {
   const { state } = useStore()
-  const navigate = useNavigate()
   const [prompt, setPrompt] = useState('')
   const contracts = [...state.contracts].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)))
   const awaiting = contracts.filter((c) => displayStatus(c, c.ownerPartyId) === 'awaiting')
@@ -19,10 +19,14 @@ export default function HomePage() {
   const [myTpl, setMyTpl] = useState<string | null>(null)
   const myTemplates = state.myTemplates ?? []
   const selectedTpl = myTemplates.find((t) => t.id === myTpl)
-  const start = (q: string, tplId: string | null = null) => q.trim() && navigate(`/nowa?q=${encodeURIComponent(q.trim())}${tplId ? `&wzor=${tplId}` : ''}`)
+  const { generate, overlay, busy } = useGenerate()
+  const start = (q: string, tplId: string | null = null) => {
+    if (q.trim()) void generate(q, { myTemplateId: tplId })
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
+      {overlay}
       <section aria-label="Główne akcje">
         <p className="text-sm font-medium text-brand-700">Dzień dobry, {firstName}</p>
         <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-tight text-ink-900 sm:text-3xl">Co chcesz dziś zrobić?</h1>
@@ -60,12 +64,12 @@ export default function HomePage() {
                     start(prompt, myTpl)
                   }
                 }}
-                placeholder={selectedTpl ? `Wklej dane drugiej strony do wzoru „${selectedTpl.name}” – np. nazwa, adres, NIP` : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł'}
+                placeholder={selectedTpl ? `Wklej dane drugiej strony do wzoru „${selectedTpl.name}” – np. nazwa, adres, NIP` : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł. Zależy mi na płatności po wykonaniu.'}
                 className="w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-[16px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
               <div className="flex justify-end px-1 pb-1">
-                <button type="submit" disabled={!prompt.trim()} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
-                  Rozpocznij <ArrowUp className="size-4" aria-hidden />
+                <button type="submit" disabled={!prompt.trim() || busy} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
+                  <Sparkles className="size-4" aria-hidden /> Generuj bezpłatnie
                 </button>
               </div>
             </form>
@@ -101,7 +105,17 @@ export default function HomePage() {
             )}
             <div className={`relative flex flex-wrap gap-2 ${myTemplates.length ? '' : 'mt-4'}`}>
               {QUICK_STARTS.map((q) => (
-                <button key={q.label} type="button" onClick={() => start(q.prompt)} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/20">
+                <button
+                  key={q.label}
+                  type="button"
+                  onClick={() => {
+                    setPrompt((cur) => (cur.trim() ? `${q.label}: ${cur.trim()}` : `${q.label}: `))
+                    requestAnimationFrame(() => {
+                      const el = document.getElementById('home-prompt') as HTMLTextAreaElement | null
+                      el?.focus()
+                      el?.setSelectionRange(el.value.length, el.value.length)
+                    })
+                  }} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/20">
                   {q.label}
                 </button>
               ))}

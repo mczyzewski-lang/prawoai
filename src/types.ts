@@ -141,6 +141,13 @@ export interface ChatMessage {
   summary?: AssistantSummary
   quickReplies?: string[]
   attachment?: { name: string; words: number }
+  /** Zmiany w umowie wprowadzone przez asystenta (linki do zapisów). */
+  changes?: { clauseId: string; label: string }[]
+  /** Stan sprzed zmian asystenta – do cofnięcia (szkic) lub id propozycji do wycofania. */
+  undo?: { clauses: Clause[]; parties: [Party, Party]; title: string } | { proposalIds: string[] }
+  undone?: boolean
+  /** Osoby wskazane przez @wzmianki. */
+  mentions?: string[]
 }
 
 export interface AssistantSummary {

@@ -295,9 +295,9 @@ const INTAKE_PROMPT = `Jesteś asystentem Prawo.ai, który w rozmowie zbiera inf
 
 Zasady:
 - Wybierz wzór WYŁĄCZNIE z katalogu (templateId). Jeśli użytkownik chce czegoś, czego nie ma, wybierz najbliższy wzór i powiedz o tym. Dokumentów jednostronnych (np. regulamin sklepu) nie tworzysz – wyjaśnij to.
-- Strona A i strona B mają role z katalogu (A = pierwsza rola, B = druga). myRole: którą stroną jest użytkownik (jeśli nie wynika jasno z wypowiedzi – zapytaj).
+- Strona A i strona B mają role z katalogu (A = pierwsza rola, B = druga). myRole: którą stroną jest użytkownik. Jeśli nie wynika to jasno z wypowiedzi, zostaw myRole puste i zapytaj. Osoby trzecie wymienione w wiadomości (np. „dla Jana Kowalskiego”, „z Janem Kowalskim”) to zwykle DRUGA strona – nigdy nie wpisuj ich jako strony użytkownika.
 - Wyciągaj dane z dowolnego tekstu, także wklejonego w całości (nazwa, adres, NIP/KRS/PESEL, e-mail, osoba reprezentująca). Rozpoznawaj, czy strona to osoba czy firma (sp. z o.o., S.A., JDG z NIP → firma).
-- NIGDY nie wymyślaj danych. Nieznane pola zostaw puste. Kwoty jako liczby bez waluty (np. "4500"). Daty w formacie RRRR-MM-DD (dziś jest {TODAY}; „koniec grudnia” = ostatni dzień grudnia najbliższego roku).
+- NIGDY nie wymyślaj danych. Nieznane pola zostaw puste. Pole scope pisz zwykłym językiem, z datami słownie (np. „obsługa stoiska na targach w Poznaniu w dniach 12–14 grudnia 2026 r.”), bez kropki na końcu. Kwoty jako liczby bez waluty (np. "4500"). Daty w formacie RRRR-MM-DD (dziś jest {TODAY}; „koniec grudnia” = ostatni dzień grudnia najbliższego roku).
 - Jeśli podano „zapisane dane użytkownika”, użyj ich dla strony użytkownika, gdy znasz jego rolę, i nie pytaj o nie ponownie.
 - Za każdym razem zwracasz PEŁNY aktualny stan (wszystkie znane dane, także te z wcześniejszych wiadomości), poprawiony o nowe informacje.
 - reply: potwierdź w jednym zdaniu, co zrozumiałeś, i zadaj 1–2 najważniejsze brakujące pytania. Nie pytaj o rzeczy opcjonalne, dopóki brakuje niezbędnych.
@@ -333,6 +333,70 @@ async function intake(body) {
     text: { format: { type: 'json_schema', name: 'contract_intake', strict: true, schema: INTAKE_SCHEMA } },
   }
   return callModel(payload, process.env.OPENAI_INTAKE_EFFORT || 'low')
+}
+
+// ——— Asystent w umowie: rozmowa i edycja ———
+const PARTY_UPDATE = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['partyId', 'kind', 'name', 'address', 'idNumber', 'email', 'representative'],
+  properties: { partyId: { type: 'string', enum: ['A', 'B'] }, kind: { type: 'string', enum: ['osoba', 'firma', ''] }, name: S, address: S, idNumber: S, email: S, representative: S },
+}
+const CONTRACT_CHAT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reply', 'edits', 'partyUpdates', 'title', 'quickReplies'],
+  properties: {
+    reply: S,
+    edits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['op', 'index', 'title', 'text', 'summary'],
+        properties: { op: { type: 'string', enum: ['update', 'insert', 'delete'] }, index: { type: 'integer' }, title: S, text: S, summary: S },
+      },
+    },
+    partyUpdates: { type: 'array', items: PARTY_UPDATE },
+    title: S,
+    quickReplies: { type: 'array', items: S },
+  },
+}
+
+const CONTRACT_CHAT_PROMPT = `Jesteś asystentem Prawo.ai pracującym nad konkretną umową razem z użytkownikiem (jedną ze stron). Rozmowa jest prywatna – druga strona jej nie widzi.
+Możesz: odpowiadać na pytania o umowę, wyjaśniać zapisy, doradzać (z perspektywy użytkownika, ale uczciwie) oraz WPROWADZAĆ ZMIANY, gdy użytkownik o to prosi lub podaje dane do uzupełnienia.
+Zasady zmian:
+- edits: lista zmian zapisów. op="update" – nowa pełna treść zapisu o numerze index (numeracja z nawiasów kwadratowych); op="insert" – nowy zapis wstawiany PO zapisie index (title = tytuł nowego paragrafu); op="delete" – usunięcie zapisu index. summary = krótki opis zmiany (np. „Dodano płatność w dwóch transzach”).
+- Zmieniaj tylko to, o co chodzi; zachowaj numerację ustępów („1.”, „2.”) i styl. Nie wymyślaj danych – jeśli czegoś brakuje, zapytaj.
+- partyUpdates: gdy użytkownik podaje dane stron (także przez @wzmiankę z danymi), uzupełnij je tu (pełne aktualne dane strony; puste pola = bez zmian). Strona A i B jak w umowie.
+- title: nowy tytuł dokumentu tylko jeśli warto go zmienić, inaczej pusty tekst.
+- reply: krótko, po polsku. Gdy coś zmieniasz, napisz co i gdzie, odwołując się do numerów paragrafów w formie „§ N” – używaj numerów § widocznych w treści (NIE indeksów w nawiasach kwadratowych); nowy zapis wstawiony po [k] otrzyma § k+2, a paragrafy za nim przesuną się o jeden. Gdy czegoś brakuje do kompletnej umowy (np. dane drugiej strony, kwota, termin), wskaż to i poproś o te informacje.
+- Jeśli umowa jest już udostępniona drugiej stronie, Twoje zmiany zostaną wysłane jako propozycje do akceptacji – napisz to.
+- Nie powołuj się na numery przepisów ani orzeczenia.
+- quickReplies: do 3 krótkich podpowiedzi następnej wiadomości użytkownika.`
+
+async function contractChat(body) {
+  const c = body?.contract ?? {}
+  const clauses = Array.isArray(c.clauses) ? c.clauses.slice(0, 80) : []
+  const parties = Array.isArray(c.parties) ? c.parties.slice(0, 2) : []
+  const messages = Array.isArray(body?.messages) ? body.messages.slice(-14) : []
+  if (!messages.length) throw Object.assign(new Error('Brak wiadomości.'), { status: 400, code: 'empty' })
+  const doc = clauses.map((x, i) => `[${i}] § ${i + 1}. ${clip(x.title, 200)}\n${clip(x.text, 6000)}`).join('\n\n')
+  if (doc.length > MAX_CHARS) throw Object.assign(new Error('Umowa jest za długa.'), { status: 413, code: 'too_long' })
+  const mentions = Array.isArray(body?.mentions) && body.mentions.length ? `\n\nDane osób wskazanych przez @wzmianki:\n${clip(JSON.stringify(body.mentions), 3000)}` : ''
+  const payload = {
+    model: INTAKE_MODEL,
+    input: [
+      { role: 'system', content: CONTRACT_CHAT_PROMPT },
+      {
+        role: 'system',
+        content: `${personaText(body?.persona)}\nUżytkownik jest stroną ${body?.viewer === 'B' ? 'B' : 'A'}. Umowa ${body?.stage === 'draft' ? 'jest szkicem (zmiany wchodzą od razu)' : 'jest udostępniona drugiej stronie (zmiany = propozycje)'}.\n\nTytuł: ${clip(c.title, 200)}\nStrony: ${clip(JSON.stringify(parties), 2000)}${mentions}\n\nTreść umowy:\n${doc}`,
+      },
+      ...messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: clip(m.text, 6000) })),
+    ],
+    text: { format: { type: 'json_schema', name: 'contract_chat', strict: true, schema: CONTRACT_CHAT_SCHEMA } },
+  }
+  return callModel(payload, process.env.OPENAI_CHAT_EFFORT || 'low')
 }
 
 // ——— Własny wzór: dostosowanie treści do nowego kontrahenta ———
@@ -392,6 +456,15 @@ createServer(async (req, res) => {
       const started = Date.now()
       const out = await analyze(body)
       console.log(`[analyze] ${out.model} · ${body.clauses.length} zapisów · ${out.result.findings?.length ?? 0} uwag · ${((Date.now() - started) / 1000).toFixed(1)} s`)
+      return send(res, 200, out)
+    }
+    if (req.url === '/api/contract-chat' && req.method === 'POST') {
+      if (!API_KEY) return send(res, 503, { error: 'Asystent wymaga skonfigurowanego modelu AI.', code: 'not_configured' })
+      if (intakeLimited(req)) return send(res, 429, { error: 'Wykorzystano godzinny limit wiadomości. Spróbuj później.', code: 'rate_limited' })
+      const body = await readJson(req, 2_000_000)
+      const started = Date.now()
+      const out = await contractChat(body)
+      console.log(`[contract-chat] ${out.model} · ${out.result.edits?.length ?? 0} zmian · ${((Date.now() - started) / 1000).toFixed(1)} s`)
       return send(res, 200, out)
     }
     if (req.url === '/api/retarget' && req.method === 'POST') {

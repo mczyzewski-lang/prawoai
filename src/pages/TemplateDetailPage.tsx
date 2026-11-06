@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowRight, ArrowUp, BadgeCheck, Check, Clock, FileWarning, ListChecks, PenLine, Send, Sparkles, Users } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { BadgeCheck, Check, Clock, FileWarning, ListChecks, PenLine, Send, Sparkles, Users } from 'lucide-react'
 import { getCategory, getTemplate, RELATION_LABELS, type TemplateDefinition } from '../data/templates'
 import { DEFAULT_ANSWERS, generateClauses } from '../lib/contractGenerator'
-import { getAiStatus } from '../lib/aiAnalysis'
+import { useGenerate } from '../components/GenerateOverlay'
 import { ButtonLink, EmptyState } from '../components/ui'
 import { TemplateCover } from '../components/TemplateCover'
 import type { Party } from '../types'
@@ -26,13 +26,8 @@ function sectionTitles(t: TemplateDefinition): string[] {
 export default function TemplateDetailPage() {
   const { templateId } = useParams()
   const t = getTemplate(templateId)
-  const navigate = useNavigate()
   const [wish, setWish] = useState('')
-  const [ai, setAi] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    void getAiStatus().then((s) => setAi(s.ai))
-  }, [])
+  const { generate, overlay, busy } = useGenerate()
 
   if (!t) {
     return (
@@ -46,25 +41,14 @@ export default function TemplateDetailPage() {
   const sections = sectionTitles(t)
   const wishes = WISHES[t.category] ?? []
 
-  /** Start: z AI – rozmowa z kontekstem; bez AI – kreator z dopisanymi oczekiwaniami. */
-  const use = (extra = wish) => {
-    const w = extra.trim()
-    if (ai) {
-      navigate(`/nowa?q=${encodeURIComponent(`Chcę utworzyć: ${t.name}.${w ? ` Zależy mi na: ${w}` : ''}`)}`)
-      return
-    }
-    if (w) {
-      try {
-        localStorage.setItem(`prawoai:wizard:${t.id}`, JSON.stringify({ step: 0, myRole: null, parties: [0, 1].map((i) => ({ id: i ? 'B' : 'A', role: t.roles[i], kind: t.defaultKinds[i], name: '', idNumber: '', address: '', email: '', representative: '' })), answers: { ...DEFAULT_ANSWERS, extra: `Ustalenia, na których zależy stronie: ${w}` }, clauses: null, title: t.name }))
-      } catch {
-        /* ignoruj */
-      }
-    }
-    navigate(`/wzory/${t.id}/kreator`)
+  const use = () => {
+    const w = wish.trim()
+    void generate(`Chcę utworzyć: ${t.name}.${w ? ` Zależy mi na: ${w}` : ''}`, { templateHint: t.id })
   }
 
   return (
     <div>
+      {overlay}
       {/* Nagłówek wzoru */}
       <section className="-mx-4 -mt-6 bg-gradient-to-b from-sand-50 to-sand-100/60 px-4 pb-14 pt-8 sm:-mx-6 sm:px-6 md:-mt-8 md:pt-12">
         <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
@@ -88,23 +72,18 @@ export default function TemplateDetailPage() {
             <h1 className="mt-5 font-serif text-[40px] font-semibold leading-[1.05] tracking-tight text-ink-900 sm:text-[56px]">{t.name}</h1>
             <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">{t.description} Dostosujemy go do Twojej sytuacji – opisz, na czym Ci zależy, a resztę ustalimy w krótkiej rozmowie.</p>
 
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
-              <button type="button" onClick={() => use()} className="group inline-flex h-14 items-center justify-center gap-2 rounded-full bg-ink-900 px-7 text-[16px] font-semibold text-white shadow-[0_14px_30px_-12px_rgba(11,42,51,0.6)] transition hover:bg-ink-800">
-                Wykorzystaj i dostosuj wzór <ArrowRight className="size-5 transition group-hover:translate-x-1" aria-hidden />
-              </button>
-              <div className="space-y-1 text-sm text-slate-600">
-                <p className="flex items-center gap-2">
-                  <Users className="size-4 text-slate-400" aria-hidden /> {t.roles[0]} · {t.roles[1]}
-                </p>
-                <p className="flex items-center gap-2">
-                  <Clock className="size-4 text-slate-400" aria-hidden /> ok. 5 minut · projekt gotowy do wysłania
-                </p>
-              </div>
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
+              <p className="flex items-center gap-2">
+                <Users className="size-4 text-slate-400" aria-hidden /> {t.roles[0]} · {t.roles[1]}
+              </p>
+              <p className="flex items-center gap-2">
+                <Clock className="size-4 text-slate-400" aria-hidden /> gotowa umowa w ok. 30 sekund
+              </p>
             </div>
 
             {/* Czat: na czym Ci zależy */}
             <form
-              className="mt-8 max-w-xl rounded-3xl bg-white p-2 shadow-lg ring-1 ring-slate-200"
+              className="mt-6 max-w-xl rounded-3xl bg-white p-2 shadow-xl ring-1 ring-slate-200"
               onSubmit={(e) => {
                 e.preventDefault()
                 use()
@@ -143,8 +122,10 @@ export default function TemplateDetailPage() {
                     + {w}
                   </button>
                 ))}
-                <button type="submit" disabled={!wish.trim()} aria-label="Dostosuj wzór" className="ml-auto grid size-10 place-items-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40">
-                  <ArrowUp className="size-5" />
+              </div>
+              <div className="flex justify-end px-1 pb-1 pt-2">
+                <button type="submit" disabled={busy} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink-900 px-6 text-[15px] font-semibold text-white shadow-[0_14px_30px_-12px_rgba(11,42,51,0.6)] transition hover:bg-ink-800 disabled:opacity-50">
+                  <Sparkles className="size-4 text-brand-300" aria-hidden /> Generuj bezpłatnie
                 </button>
               </div>
             </form>
@@ -208,8 +189,15 @@ export default function TemplateDetailPage() {
               {approved ? `Wzór stworzony i potwierdzony przez ${t.review!.reviewedBy}.` : 'Wzór przykładowy – przed podpisaniem warto, by umowę sprawdził prawnik.'}
             </p>
           </div>
-          <button type="button" onClick={() => use()} className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full bg-brand-500 px-6 font-semibold text-ink-950 transition hover:bg-brand-400">
-            Wykorzystaj i dostosuj wzór <ArrowRight className="size-5" aria-hidden />
+          <button
+            type="button"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+              setTimeout(() => document.getElementById('wish')?.focus(), 400)
+            }}
+            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full bg-brand-500 px-6 font-semibold text-ink-950 transition hover:bg-brand-400"
+          >
+            <Sparkles className="size-4" aria-hidden /> Generuj bezpłatnie
           </button>
         </div>
       </section>

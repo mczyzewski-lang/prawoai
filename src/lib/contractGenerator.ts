@@ -84,7 +84,7 @@ export function generateClauses(t: TemplateDefinition, parties: [Party, Party], 
     'Dokładne dane stron pozwalają jednoznacznie ustalić, kto ma prawa i obowiązki z umowy. Przy firmach warto sprawdzić dane w rejestrze i to, kto może ją reprezentować.',
   )
 
-  const subj = a.scope.trim() || `[opisz ${labelFor(t, 'scope').toLowerCase()}]`
+  const subj = a.scope.trim().replace(/[.\s]+$/, '') || `[opisz ${labelFor(t, 'scope').toLowerCase()}]`
   add(
     'Przedmiot umowy',
     `1. Przedmiotem umowy jest: ${subj}.\n2. Szczegółowy zakres może zostać doprecyzowany w załącznikach lub w korespondencji e-mail zaakceptowanej przez obie Strony.`,

@@ -27,6 +27,10 @@ import { acceptCurrentVersion, addComment, addSignature, decideFinding, editDraf
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
 import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs, TextField } from '../ui'
 import { ownDataDiffers, toMyTemplate } from '../../lib/intake'
+import { applyAssistantResult, collectContacts } from '../../lib/contractAssistant'
+import { snapshot } from '../../lib/contractOps'
+import { personaFor } from '../../lib/persona'
+import { nowIso, uid } from '../../lib/utils'
 import { OwnDataModal, PartyFields } from '../OwnDataModal'
 import { partyLine } from '../../lib/contractGenerator'
 import type { SavedParty } from '../../types'
@@ -97,7 +101,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const isSigned = c.stage === 'signed'
   const directEdit = isDraft && isOwner
   // Umowa wgrana do analizy: zapytaj raz, czy rozpoznane dane użytkownika są poprawne.
-  const ownPrompt = isOwner && c.source !== 'template' && !c.ownDataConfirmed && !!me.name && ownDataDiffers({ ...me }, appState.profile.ownParty)
+  const ownPrompt = isOwner && (c.ownDataConfirmed === false || (c.source !== 'template' && !c.ownDataConfirmed)) && !!me.name && ownDataDiffers({ ...me }, appState.profile.ownParty)
   const version = c.versions.length
   const openProposals = c.proposals.filter((p) => p.status === 'open')
   const pendingFindings = hasAnalysis ? c.analysis!.findings.filter((f) => f.status === 'pending').length : 0
@@ -237,6 +241,31 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             const clause = c.clauses.find((x) => x.id === clauseId)
             if (clause) startProposal(clause, text)
           }}
+          onAssistantResult={(res) =>
+            updateContract(c.id, (x) => {
+              const { contract: next, changes, undo } = applyAssistantResult(x, res, viewer, viewerName)
+              const reply: ChatMessage = { id: uid('m'), role: 'assistant', text: res.reply, createdAt: nowIso(), changes: changes.length ? changes : undefined, undo, quickReplies: res.quickReplies?.slice(0, 3) }
+              return { ...next, privateChats: { ...next.privateChats, [viewer]: [...(next.privateChats[viewer] ?? []), reply] } }
+            })
+          }
+          onUndo={(messageId) => {
+            updateContract(c.id, (x) => {
+              const msgs = x.privateChats[viewer] ?? []
+              const m = msgs.find((y) => y.id === messageId)
+              if (!m?.undo || m.undone) return x
+              let next = x
+              if ('clauses' in m.undo) {
+                next = snapshot({ ...x, clauses: m.undo.clauses, parties: m.undo.parties, title: m.undo.title }, viewerName, 'Cofnięto zmiany asystenta')
+              } else {
+                for (const pid of m.undo.proposalIds) next = resolveProposal(next, pid, 'withdrawn', { partyId: viewer, name: viewerName })
+              }
+              return { ...next, privateChats: { ...next.privateChats, [viewer]: msgs.map((y) => (y.id === messageId ? { ...y, undone: true } : y)) } }
+            })
+            toast('Cofnięto zmiany asystenta')
+          }}
+          onOpenClause={(id) => selectClause(id)}
+          contacts={isOwner ? collectContacts(appState.profile.ownParty, appState.contracts) : []}
+          persona={isOwner ? personaFor(appState.profile) : undefined}
         />
       )
     return <HistoryPanel c={c} />

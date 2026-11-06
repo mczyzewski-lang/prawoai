@@ -28,6 +28,13 @@ npm run dev:web    # sam frontend (bez API – analiza działa w trybie podstawo
 npm run typecheck  # tylko sprawdzenie typów
 ```
 
+## Generuj bezpłatnie i asystent umowy (OpenAI)
+
+- Na stronie głównej i na stronie wzoru opisujesz umowę (skróty typu „Umowa zlecenia” tylko wpisują początek opisu). **„Generuj bezpłatnie”** od razu tworzy projekt: model rozpoznaje rodzaj umowy i dane (`/api/intake`), aplikacja składa umowę, a asystent dopasowuje zapisy do Twoich oczekiwań (`/api/contract-chat`). Otwiera się gotowa umowa z asystentem obok.
+- **Asystent umowy** rozmawia o umowie i ją edytuje: w szkicu zmiany wchodzą od razu (z historią wersji i przyciskiem „Cofnij”), po udostępnieniu trafiają do drugiej strony jako propozycje. W odpowiedziach odwołania „§ N” i lista zmian prowadzą do zmienionych zapisów.
+- W polu wiadomości **„@”** podpowiada osoby z konta (Twoje zapisane dane i strony z Twoich umów) – ich dane trafiają do asystenta, np. „uzupełnij dane @Marek Czyżewski”.
+- Bez `OPENAI_API_KEY`: „Generuj bezpłatnie” otwiera kreator pasującego wzoru z zapisanymi oczekiwaniami, a asystent w umowie działa w trybie podstawowym (wyjaśnienia bez edycji).
+
 ## Tworzenie umowy z opisu (OpenAI)
 
 Na stronie głównej wpisujesz własnymi słowami, jaką umowę potrzebujesz (albo klikasz skrót, np. „Umowa zlecenia”). Ekran `/nowa` prowadzi rozmowę przez `POST /api/intake`:
