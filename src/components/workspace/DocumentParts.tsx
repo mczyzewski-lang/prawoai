@@ -1,4 +1,4 @@
-import { Building2, Check, PenLine, Pencil, User } from 'lucide-react'
+import { Building2, Check, PenLine, Pencil, Send, User } from 'lucide-react'
 import type { Contract, Party, PartyId } from '../../types'
 import { cx, formatDate, formatDateTime } from '../../lib/utils'
 import { documentKind, partyRows, splitClauseLines, stageLabel } from '../../lib/documentFormat'
@@ -157,7 +157,7 @@ export function ClauseHeading({ index, title, className }: { index: number; titl
   )
 }
 
-export function SignatureStrip({ c, viewer, onSign, blockedReason }: { c: Contract; viewer?: PartyId; onSign?: () => void; blockedReason?: string | null }) {
+export function SignatureStrip({ c, viewer, onSign, blockedReason, onSendToOther }: { c: Contract; viewer?: PartyId; onSign?: () => void; blockedReason?: string | null; onSendToOther?: () => void }) {
   return (
     <section id="podpisy" className="scroll-mt-24 border-t border-slate-200/70 px-5 py-8 sm:px-10" aria-label="Podpisy stron">
       <p className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Podpisy stron</p>
@@ -178,6 +178,10 @@ export function SignatureStrip({ c, viewer, onSign, blockedReason }: { c: Contra
                     className="mb-2 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     <PenLine className="size-4" aria-hidden /> Podpisz umowę
+                  </button>
+                ) : onSendToOther && p.id !== viewer && c.stage !== 'signed' ? (
+                  <button type="button" onClick={onSendToOther} className="mb-2 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-brand-700 ring-1 ring-brand-300 transition hover:bg-brand-50">
+                    <Send className="size-4" aria-hidden /> Wyślij do podpisu
                   </button>
                 ) : (
                   <span className="pb-2 font-serif text-sm italic text-slate-300">miejsce na podpis</span>

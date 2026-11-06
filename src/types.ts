@@ -189,7 +189,7 @@ export interface Contract {
   /** Akceptacja aktualnej wersji przez strony (numer wersji). */
   acceptedBy: Partial<Record<PartyId, { at: string; version: number }>>
   shareId?: string
-  invite?: { name: string; email: string; message: string; sentAt: string }
+  invite?: { name: string; email: string; message: string; sentAt: string; phone?: string; purpose?: 'negotiate' | 'sign' }
   analysis?: AnalysisResult
   /** Prywatne rozmowy z asystentem – osobno dla każdej strony. */
   privateChats: Partial<Record<PartyId, ChatMessage[]>>

@@ -23,7 +23,7 @@ export function editDraftClauses(c: Contract, clauses: Clause[], authorName: str
   return log(snapshot({ ...c, clauses }, authorName, 'Edycja projektu'), `${authorName} zapisał(a) zmiany w projekcie`)
 }
 
-export function shareContract(c: Contract, invite: { name: string; email: string; message: string }, authorName: string): Contract {
+export function shareContract(c: Contract, invite: { name: string; email: string; message: string; phone?: string; purpose?: 'negotiate' | 'sign' }, authorName: string): Contract {
   const shareId = c.shareId ?? uid('s').replace('s_', '')
   const other = otherParty(c.ownerPartyId)
   const parties = c.parties.map((p) =>
@@ -36,7 +36,8 @@ export function shareContract(c: Contract, invite: { name: string; email: string
     stage: c.stage === 'draft' ? 'shared' : c.stage,
     invite: { ...invite, sentAt: nowIso() },
   }
-  return log(next, `${authorName} udostępnił(a) dokument: ${invite.name || invite.email}`, c.ownerPartyId)
+  const who = invite.name || invite.email || invite.phone || 'link'
+  return log(next, invite.purpose === 'sign' ? `${authorName} wysłał(a) umowę do podpisu: ${who}` : `${authorName} udostępnił(a) dokument: ${who}`, c.ownerPartyId)
 }
 
 export function submitProposal(

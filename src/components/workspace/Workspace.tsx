@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   MessageSquare,
   MessageSquareText,
+  PenLine,
   Pencil,
   ScanSearch,
   Send,
@@ -38,7 +39,7 @@ import { OwnDataModal, PartyFields } from '../OwnDataModal'
 import { partyLine } from '../../lib/contractGenerator'
 import type { SavedParty } from '../../types'
 import { useToast } from '../Toast'
-import { ShareDialog } from '../ShareDialog'
+import { SendToSignDialog, ShareDialog } from '../ShareDialog'
 import { SignModal } from '../SignModal'
 import { FindingCard, PRIORITY_META, ProposalCard, priorityOf } from './Cards'
 import { matchesFilter, numberFindings, type FindingFilter, type NumberedFinding } from './Annotations'
@@ -89,11 +90,19 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [proposalFor, setProposalFor] = useState<{ clause: Clause; text?: string } | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
+  const [sendSignOpen, setSendSignOpen] = useState(false)
+  const otherSigned = c.signatures.some((sg) => sg.partyId !== c.ownerPartyId)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [activeFinding, setActiveFinding] = useState<string | null>(null)
   /** Komentarz wskazany myszą na marginesie – mocniej wyróżniamy jego fragment w umowie. */
   const [hoverFinding, setHoverFinding] = useState<string | null>(null)
+  // Link „do podpisu” (…#podpisy) – przewiń do miejsca na podpis.
+  useEffect(() => {
+    if (window.location.hash !== '#podpisy') return
+    const t = setTimeout(() => document.getElementById('podpisy')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
+    return () => clearTimeout(t)
+  }, [])
   const goToSign = () => {
     if (panel !== 'dokument' && !window.matchMedia('(min-width: 1024px)').matches) setPanel('dokument')
     setTimeout(() => document.getElementById('podpisy')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
@@ -330,9 +339,14 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             </p>
           </div>
           <div className="flex flex-wrap gap-2 lg:max-w-[52%] lg:justify-end">
+            {isOwner && !isSigned && !otherSigned && (
+              <Button variant="accent" onClick={() => setSendSignOpen(true)} icon={<PenLine className="size-4" />}>
+                Wyślij do podpisu
+              </Button>
+            )}
             {isOwner && !isSigned && (
-              <Button variant={c.shareId ? 'secondary' : 'accent'} onClick={() => setShareOpen(true)} icon={c.shareId ? <Share2 className="size-4" /> : <Send className="size-4" />}>
-                {c.shareId ? 'Udostępnij' : 'Zaproś drugą stronę do negocjacji'}
+              <Button variant="secondary" onClick={() => setShareOpen(true)} icon={c.shareId ? <Share2 className="size-4" /> : <Send className="size-4" />}>
+                {c.shareId ? 'Udostępnij' : 'Zaproś do negocjacji'}
               </Button>
             )}
             {c.stage === 'agreed' && !isSigned && !c.signatures.some((s) => s.partyId === viewer) && (
@@ -499,6 +513,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               viewer={viewer}
               onSign={() => guard('Aby podpisać umowę, załóż bezpłatne konto.', () => setSignOpen(true))}
               blockedReason={openProposals.length > 0 ? 'Najpierw rozstrzygnijcie otwarte propozycje zmian.' : null}
+              onSendToOther={isOwner && !isSigned ? () => setSendSignOpen(true) : undefined}
             />
           </article>
         </div>
@@ -510,6 +525,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
       <ProposalModal open={!!proposalFor} onClose={() => setProposalFor(null)} clause={proposalFor?.clause ?? null} initialText={proposalFor?.text} directEdit={directEdit} onSubmit={submitChange} />
       {isOwner && <ShareDialog contract={c} open={shareOpen} onClose={() => setShareOpen(false)} />}
+      {isOwner && sendSignOpen && <SendToSignDialog contract={c} open onClose={() => setSendSignOpen(false)} />}
       {isOwner && (
         <Modal
           open={tplOpen}

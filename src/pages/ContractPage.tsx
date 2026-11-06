@@ -106,7 +106,14 @@ export function SharedContractPage() {
         )
       }
     >
-      {!account && (
+      {c.invite?.purpose === 'sign' && c.stage !== 'signed' && !c.signatures.some((sg) => sg.partyId === viewer) ? (
+        <Alert tone="info" title={`${owner.name || 'Druga strona'} prosi Cię o podpisanie umowy`} className="mb-5">
+          Przeczytaj umowę i podpisz ją na ekranie – palcem na telefonie lub myszką.{' '}
+          <button type="button" className="font-semibold underline" onClick={() => document.getElementById('podpisy')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+            Przejdź do podpisu
+          </button>
+        </Alert>
+      ) : !account && (
         <Alert tone="info" title={`${owner.name} udostępnia Ci projekt umowy`} className="mb-5">
           Możesz przeczytać cały dokument bez rejestracji. Aby zapisać go u siebie, zgłaszać zmiany lub korzystać z własnego asystenta, załóż bezpłatne konto.
         </Alert>
