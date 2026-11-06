@@ -30,6 +30,46 @@ function Linkified({ text, clauses, onOpen }: { text: string; clauses: Clause[];
   return <>{parts}</>
 }
 
+/** Tekst z wyróżnionymi @wzmiankami (dla pola wpisywania i dymków). */
+function MentionText({ text, labels, tone }: { text: string; labels: string[]; tone: 'input' | 'bubble' }) {
+  const sorted = [...labels].sort((a, b) => b.length - a.length)
+  if (!sorted.length) return <>{text}</>
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(@(?:${sorted.map(esc).join('|')}))`, 'g')
+  return (
+    <>
+      {text.split(re).map((part, i) =>
+        re.test(part) && part.startsWith('@') ? (
+          <mark key={i} className={cx('rounded-md', tone === 'input' ? 'bg-brand-100 text-transparent ring-1 ring-brand-300' : 'bg-white/20 px-1 font-semibold text-white ring-1 ring-white/30')}>
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  )
+}
+
+/** Bez modelu AI: @wzmianka uzupełnia dane strony (Twojej albo tej, której dane są puste). */
+function mentionFillResult(c: Contract, viewer: PartyId, text: string, used: Mention[]): AssistantResult {
+  const me = c.parties.find((p) => p.id === viewer)!
+  const other = c.parties.find((p) => p.id !== viewer)!
+  const t = text.toLowerCase()
+  const wantsOther = /drug(a|iej|ą) stron|kontrahent/.test(t) || t.includes(other.role.toLowerCase().slice(0, 6))
+  const wantsMe = /\b(moj|moje|mnie|ja)\b/.test(t) || t.includes(me.role.toLowerCase().slice(0, 6))
+  const order: (typeof me)[] = wantsOther && !wantsMe ? [other, me] : wantsMe ? [me, other] : !me.name ? [me, other] : !other.name ? [other, me] : [me, other]
+  const updates = used.slice(0, 2).map((m, i) => ({ partyId: order[i].id, ...m.data, kind: m.data.kind }))
+  const names = updates.map((u, i) => `„${order[i].role}” – ${u.name}`).join('; ')
+  return {
+    reply: `Uzupełniłem dane strony ${names} (zob. § 1). Jeśli trafiły do niewłaściwej strony, kliknij „Cofnij” i napisz np. „@… to dane drugiej strony” albo popraw je przyciskiem „Edytuj” przy kolumnach.`,
+    edits: [],
+    partyUpdates: updates,
+    title: '',
+    quickReplies: [],
+  }
+}
+
 export function PrivateAssistant({
   contract,
   viewer,
@@ -67,6 +107,7 @@ export function PrivateAssistant({
   const [mentionIdx, setMentionIdx] = useState(0)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void getAiStatus().then((s) => setAi(s.ai))
@@ -140,6 +181,19 @@ export function PrivateAssistant({
       } catch (e) {
         setError(e instanceof AssistantError ? e.message : 'Asystent nie odpowiedział.')
       }
+    } else if (used.length) {
+      await sleep(400)
+      onAssistantResult(mentionFillResult(contract, viewer, question, used))
+    } else if (/\b(zmie|dodaj|usu|popraw|wpisz|uzupełn|przeredaguj)/i.test(question)) {
+      await sleep(400)
+      onAppend([
+        {
+          id: uid('m'),
+          role: 'assistant',
+          text: 'Samodzielne zmiany treści przez asystenta są w tej chwili niedostępne. Możesz to zrobić od razu w dokumencie: kliknij tytuł paragrafu i wybierz „Edytuj zapis”, a dane stron popraw przyciskiem „Edytuj” przy kolumnach. Dane zapisanych osób wstawisz też przez @ – np. „@Twoja firma”.',
+          createdAt: nowIso(),
+        },
+      ])
     } else {
       await sleep(600)
       onAppend([privateAnswer(question, contract, viewer, selected)])
@@ -169,7 +223,7 @@ export function PrivateAssistant({
         {messages.map((m) => (
           <div key={m.id} className={cx('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div className={cx('max-w-[94%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed', m.role === 'user' ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-sand-50 text-slate-800 ring-1 ring-slate-200')}>
-              <p className="whitespace-pre-wrap">{m.role === 'assistant' ? <Linkified text={m.text} clauses={contract.clauses} onOpen={onOpenClause} /> : m.text}</p>
+              <p className="whitespace-pre-wrap">{m.role === 'assistant' ? <Linkified text={m.text} clauses={contract.clauses} onOpen={onOpenClause} /> : <MentionText text={m.text} labels={m.mentions ?? []} tone="bubble" />}</p>
               {m.changes && m.changes.length > 0 && (
                 <div className="mt-2 rounded-xl bg-white p-2.5 ring-1 ring-brand-200">
                   <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-800">
@@ -263,9 +317,17 @@ export function PrivateAssistant({
           <label htmlFor="priv-q" className="sr-only">
             Wiadomość do asystenta
           </label>
+          <div className="relative min-w-0 flex-1">
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent px-3 py-2.5 text-sm text-transparent" ref={backdropRef}>
+            <MentionText text={input} labels={contacts.map((c) => c.label)} tone="input" />
+            {'\u200b'}
+          </div>
           <textarea
             id="priv-q"
             ref={inputRef}
+            onScroll={(e) => {
+              if (backdropRef.current) backdropRef.current.scrollTop = e.currentTarget.scrollTop
+            }}
             rows={1}
             value={input}
             onChange={(e) => {
@@ -299,10 +361,11 @@ export function PrivateAssistant({
                 void ask(input)
               }
             }}
-            placeholder={ai ? 'Napisz, co zmienić… (@ – dane osoby z konta)' : 'Zapytaj o umowę…'}
+            placeholder={ai ? 'Napisz, co zmienić… (@ – dane osoby z konta)' : 'Zapytaj o umowę… (@ – wstaw dane osoby z konta)'}
             aria-autocomplete="list"
-            className="max-h-36 min-h-11 min-w-0 flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
+            className="relative block max-h-36 min-h-11 w-full resize-none rounded-xl border border-slate-300 bg-transparent px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
           />
+          </div>
           <Button type="submit" variant="primary" aria-label="Wyślij" disabled={!input.trim() || thinking} icon={<ArrowUp className="size-4" />} className="h-11" />
         </form>
         <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-500">
