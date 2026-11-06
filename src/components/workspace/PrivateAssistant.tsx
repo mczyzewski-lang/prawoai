@@ -177,7 +177,10 @@ export function PrivateAssistant({
     setInput('')
     setMentionQuery(null)
     setThinking(true)
-    if (ai) {
+    // Stan AI sprawdzany przy każdej wiadomości (klucz mógł zostać właśnie włączony).
+    const live = (await getAiStatus()).ai
+    if (live !== ai) setAi(live)
+    if (live) {
       try {
         const history = [...messages, userMsg].map((m) => ({ ...m, text: m.role === 'user' && selected && /wybran/i.test(m.text) ? `${m.text} [chodzi o zapis: ${selected.title}]` : m.text }))
         const res = await askContractAssistant(contract, viewer, history, { persona, mentions: used })

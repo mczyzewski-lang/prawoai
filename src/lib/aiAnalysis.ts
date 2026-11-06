@@ -21,10 +21,20 @@ export class AiAnalysisError extends Error {
 
 let statusCache: Promise<AiStatus> | null = null
 
+/** Stan AI: wynik pozytywny zapamiętujemy, negatywny sprawdzamy ponownie po 20 s (np. po włączeniu klucza). */
+let statusOk = false
+let statusAt = 0
 export function getAiStatus(): Promise<AiStatus> {
-  statusCache ??= fetch('/api/status')
-    .then((r) => (r.ok ? (r.json() as Promise<AiStatus>) : { ai: false, model: null }))
-    .catch(() => ({ ai: false, model: null }))
+  if (!statusCache || (!statusOk && Date.now() - statusAt > 20_000)) {
+    statusAt = Date.now()
+    statusCache = fetch('/api/status', { cache: 'no-store' })
+      .then((r) => (r.ok ? (r.json() as Promise<AiStatus>) : { ai: false, model: null }))
+      .catch(() => ({ ai: false, model: null }))
+      .then((st) => {
+        statusOk = !!st.ai
+        return st
+      })
+  }
   return statusCache
 }
 
