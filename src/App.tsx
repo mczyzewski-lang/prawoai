@@ -9,9 +9,11 @@ import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
 import { OwnerSignPage, SharedSignPage } from './pages/SignPage'
 import AssistantPage from './pages/AssistantPage'
 import NotFoundPage from './pages/NotFoundPage'
+import { VersionBadge } from './components/VersionBadge'
 
 export default function App() {
   return (
+    <>
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
@@ -28,5 +30,7 @@ export default function App() {
       <Route path="d/:shareId" element={<SharedContractPage />} />
       <Route path="d/:shareId/podpis" element={<SharedSignPage />} />
     </Routes>
+    <VersionBadge />
+    </>
   )
 }
