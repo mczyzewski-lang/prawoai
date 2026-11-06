@@ -1,5 +1,6 @@
 import type { Contract, Party } from '../types'
 import { clausesToText } from './contractGenerator'
+import { BRAND_COLORS, BRAND_PATHS } from './brand'
 import { formatDate, formatDateTime, sha256 } from './utils'
 import { documentKind, isPartiesClause, partiesClauseIsGenerated, partyRows, splitClauseLines, stageLabel } from './documentFormat'
 
@@ -70,26 +71,23 @@ function drawMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   ctx.save()
   ctx.translate(x, y)
   ctx.scale(k, k)
-  ctx.fillStyle = C.ink
+  ctx.fillStyle = BRAND_COLORS.ink
   roundRect(ctx, 0, 0, 32, 32, 9)
   ctx.fill()
-  ctx.lineWidth = 2.4
-  ctx.strokeStyle = '#2fb8a5'
-  roundRect(ctx, 7, 9, 12, 15, 3)
-  ctx.stroke()
-  ctx.fillStyle = C.ink
-  ctx.strokeStyle = '#ffffff'
-  roundRect(ctx, 13, 7, 12, 15, 3)
-  ctx.fill()
-  ctx.stroke()
-  ctx.strokeStyle = '#2fb8a5'
+  ctx.fillStyle = BRAND_COLORS.paper
+  ctx.fill(new Path2D(BRAND_PATHS.page))
+  ctx.fillStyle = BRAND_COLORS.tealLight
+  ctx.fill(new Path2D(BRAND_PATHS.fold))
+  ctx.fillStyle = 'rgba(11,42,51,0.35)'
+  ctx.fill(new Path2D(BRAND_PATHS.line1))
+  ctx.fill(new Path2D(BRAND_PATHS.line2))
+  const spark = new Path2D(BRAND_PATHS.spark)
   ctx.lineWidth = 2.2
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(16.5, 14.5)
-  ctx.lineTo(18.5, 16.5)
-  ctx.lineTo(22, 12.5)
-  ctx.stroke()
+  ctx.lineJoin = 'round'
+  ctx.strokeStyle = BRAND_COLORS.ink
+  ctx.stroke(spark)
+  ctx.fillStyle = BRAND_COLORS.teal
+  ctx.fill(spark)
   ctx.restore()
 }
 

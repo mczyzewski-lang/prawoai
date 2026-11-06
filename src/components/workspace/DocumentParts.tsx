@@ -2,17 +2,13 @@ import { Building2, Check, PenLine, Pencil, User } from 'lucide-react'
 import type { Contract, Party, PartyId } from '../../types'
 import { cx, formatDate, formatDateTime } from '../../lib/utils'
 import { documentKind, partyRows, splitClauseLines, stageLabel } from '../../lib/documentFormat'
+import { BrandSymbol } from '../BrandSymbol'
 import { HighlightedText, type NumberedFinding } from './Annotations'
 
 /** Mały znak Prawo.ai do nagłówka dokumentu. */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={cx('size-5', className)} aria-hidden>
-      <rect width="32" height="32" rx="9" fill="#0b2a33" />
-      <rect x="7" y="9" width="12" height="15" rx="3" fill="none" stroke="#2fb8a5" strokeWidth="2.4" />
-      <rect x="13" y="7" width="12" height="15" rx="3" fill="#0b2a33" stroke="#ffffff" strokeWidth="2.4" />
-      <path d="M16.5 14.5l2 2 3.5-4" fill="none" stroke="#2fb8a5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <BrandSymbol className={cx('size-5', className)} />
   )
 }
 

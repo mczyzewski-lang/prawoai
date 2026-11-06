@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
 import { ProfileModal } from './ProfileModal'
+import { BrandSymbol } from './BrandSymbol'
 import { useStore } from '../store/AppStore'
 import { Alert, Avatar, Button, Modal } from './ui'
 import { cx } from '../lib/utils'
@@ -10,12 +11,7 @@ import { useToast } from './Toast'
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return (
     <span className={cx('inline-flex items-center gap-2', className)}>
-      <svg viewBox="0 0 32 32" className="size-8 shrink-0" aria-hidden>
-        <rect width="32" height="32" rx="9" fill={light ? '#ffffff' : '#0b2a33'} />
-        <rect x="7" y="9" width="12" height="15" rx="3" fill="none" stroke="#2fb8a5" strokeWidth="2.4" />
-        <rect x="13" y="7" width="12" height="15" rx="3" fill={light ? '#ffffff' : '#0b2a33'} stroke={light ? '#0b2a33' : '#ffffff'} strokeWidth="2.4" />
-        <path d="M16.5 14.5l2 2 3.5-4" fill="none" stroke="#2fb8a5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <BrandSymbol className="size-8 shrink-0" light={light} />
       <span className={cx('text-lg font-semibold tracking-tight', light ? 'text-white' : 'text-ink-900')}>
         Prawo<span className="text-brand-600">.ai</span>
       </span>
