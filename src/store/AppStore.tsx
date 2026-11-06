@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Contract, Conversation, GuestAccount, Profile } from '../types'
+import type { Contract, Conversation, GuestAccount, MyTemplate, Profile } from '../types'
 import { DEFAULT_PROFILE, seedContracts, seedConversations } from './seed'
 
 const STORAGE_KEY = 'prawoai:v1'
@@ -12,10 +12,12 @@ export interface AppState {
   conversations: Conversation[]
   /** Konta gości (kontrahentów) per link udostępnienia. */
   guestAccounts: Record<string, GuestAccount>
+  /** Własne wzory użytkownika. */
+  myTemplates: MyTemplate[]
 }
 
 function freshState(): AppState {
-  return { schema: SCHEMA_VERSION, profile: DEFAULT_PROFILE, contracts: seedContracts(), conversations: seedConversations(), guestAccounts: {} }
+  return { schema: SCHEMA_VERSION, profile: DEFAULT_PROFILE, contracts: seedContracts(), conversations: seedConversations(), guestAccounts: {}, myTemplates: [] }
 }
 
 type LoadResult = { state: AppState; error: string | null }
@@ -49,6 +51,8 @@ interface Store {
   deleteConversation: (id: string) => void
   setGuestAccount: (shareId: string, acc: GuestAccount | null) => void
   updateProfile: (p: Profile) => void
+  upsertMyTemplate: (t: MyTemplate) => void
+  deleteMyTemplate: (id: string) => void
   resetDemo: () => void
 }
 
@@ -122,6 +126,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           return { ...s, guestAccounts }
         }),
       updateProfile: (profile) => setState((s) => ({ ...s, profile })),
+      upsertMyTemplate: (t) => setState((s) => ({ ...s, myTemplates: [t, ...(s.myTemplates ?? []).filter((x) => x.id !== t.id)] })),
+      deleteMyTemplate: (id) => setState((s) => ({ ...s, myTemplates: (s.myTemplates ?? []).filter((x) => x.id !== id) })),
       resetDemo: () => {
         setState(freshState())
         setLoadError(null)

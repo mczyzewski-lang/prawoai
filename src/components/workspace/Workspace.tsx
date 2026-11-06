@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  BookmarkPlus,
   Bot,
   Check,
   CheckCircle2,
@@ -24,7 +25,9 @@ import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
 import { useStore } from '../../store/AppStore'
 import { acceptCurrentVersion, addComment, addSignature, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
-import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs } from '../ui'
+import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs, TextField } from '../ui'
+import { ownDataDiffers, toMyTemplate } from '../../lib/intake'
+import { OwnDataModal } from '../OwnDataModal'
 import { useToast } from '../Toast'
 import { ShareDialog } from '../ShareDialog'
 import { SignModal } from '../SignModal'
@@ -51,7 +54,7 @@ export interface WorkspaceProps {
 }
 
 export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount, requireAccount, signPath }: WorkspaceProps) {
-  const { updateContract, deleteContract } = useStore()
+  const { state: appState, updateContract, deleteContract, upsertMyTemplate, updateProfile } = useStore()
   const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -67,6 +70,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [pdfBusy, setPdfBusy] = useState(false)
   const [activeFinding, setActiveFinding] = useState<string | null>(null)
   const [signOpen, setSignOpen] = useState(false)
+  const [tplOpen, setTplOpen] = useState(false)
+  const [tplName, setTplName] = useState(c.title)
   const [findingFilter, setFindingFilter] = useState<FindingFilter>('otwarte')
 
   const setPanel = (p: Panel) => {
@@ -88,6 +93,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const isDraft = c.stage === 'draft'
   const isSigned = c.stage === 'signed'
   const directEdit = isDraft && isOwner
+  // Umowa wgrana do analizy: zapytaj raz, czy rozpoznane dane użytkownika są poprawne.
+  const ownPrompt = isOwner && c.source !== 'template' && !c.ownDataConfirmed && !!me.name && ownDataDiffers({ ...me }, appState.profile.ownParty)
   const version = c.versions.length
   const openProposals = c.proposals.filter((p) => p.status === 'open')
   const pendingFindings = hasAnalysis ? c.analysis!.findings.filter((f) => f.status === 'pending').length : 0
@@ -280,6 +287,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             <Button variant="secondary" onClick={downloadPdf} loading={pdfBusy} icon={<Download className="size-4" />}>
               PDF
             </Button>
+            {isOwner && <Button variant="ghost" aria-label="Zapisz jako mój wzór" title="Zapisz jako mój wzór" onClick={() => setTplOpen(true)} icon={<BookmarkPlus className="size-4" />} />}
             {isOwner && <Button variant="ghost" aria-label="Usuń umowę" onClick={() => setDeleteOpen(true)} icon={<Trash2 className="size-4" />} />}
           </div>
         </div>
@@ -308,6 +316,11 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
       {isSigned && (
         <Alert tone="success" title="Umowa podpisana" className="mb-4">
           {c.signatures.map((s) => `${s.signerName} (${formatDateTime(s.signedAt)})`).join(' · ')}
+        </Alert>
+      )}
+      {c.reviewNotice && isOwner && (
+        <Alert tone="warning" title="Sprawdź przed wysłaniem" className="mb-4" onClose={() => updateContract(c.id, (x) => ({ ...x, reviewNotice: undefined }))}>
+          {c.reviewNotice}
         </Alert>
       )}
       {isDraft && isOwner && (
@@ -390,11 +403,60 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
       <ProposalModal open={!!proposalFor} onClose={() => setProposalFor(null)} clause={proposalFor?.clause ?? null} initialText={proposalFor?.text} directEdit={directEdit} onSubmit={submitChange} />
       {isOwner && <ShareDialog contract={c} open={shareOpen} onClose={() => setShareOpen(false)} />}
+      {isOwner && (
+        <Modal
+          open={tplOpen}
+          onClose={() => setTplOpen(false)}
+          title="Zapisz jako mój wzór"
+          description="Następnym razem wybierzesz ten wzór na stronie głównej i wkleisz tylko dane drugiej strony – reszta umowy uzupełni się sama."
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setTplOpen(false)}>
+                Anuluj
+              </Button>
+              <Button
+                variant="accent"
+                disabled={!tplName.trim()}
+                icon={<BookmarkPlus className="size-4" />}
+                onClick={() => {
+                  upsertMyTemplate(toMyTemplate(c, tplName))
+                  setTplOpen(false)
+                  toast(`Zapisano wzór „${tplName.trim()}”`)
+                }}
+              >
+                Zapisz wzór
+              </Button>
+            </>
+          }
+        >
+          <TextField label="Nazwa wzoru" value={tplName} onChange={(e) => setTplName(e.target.value)} hint="Np. „Montaż pompy ciepła – standard”." />
+          <p className="mt-3 text-sm text-slate-600">
+            Zapiszemy aktualną treść umowy (wersja {c.versions.length}) i Twoje dane jako stronę „{me.role}”.
+          </p>
+        </Modal>
+      )}
+      {isOwner && (
+        <OwnDataModal
+          open={ownPrompt}
+          initial={{ kind: me.kind, name: me.name, address: me.address, idNumber: me.idNumber, email: me.email, representative: me.representative }}
+          role={me.role}
+          alreadySaved={!!appState.profile.ownParty}
+          onConfirm={(d, save) => {
+            updateContract(c.id, (x) => ({ ...x, ownDataConfirmed: true, parties: x.parties.map((p) => (p.id === viewer ? { ...p, ...d } : p)) as Contract['parties'] }))
+            if (save) {
+              updateProfile({ ...appState.profile, ownParty: d })
+              toast('Zapisano Twoje dane w Prawo.ai – użyjemy ich w kolejnych umowach i pismach')
+            }
+          }}
+          onClose={() => updateContract(c.id, (x) => ({ ...x, ownDataConfirmed: true }))}
+        />
+      )}
       <SignModal
         open={signOpen}
         onClose={() => setSignOpen(false)}
         c={c}
         party={me}
+        form={isOwner ? appState.profile.form : undefined}
         defaultName={me.kind === 'firma' ? me.representative || viewerName : me.name || viewerName}
         onSigned={(sig) => {
           updateContract(c.id, (x) => addSignature(x, sig))

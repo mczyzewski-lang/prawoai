@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Eraser, MessageSquareText, PenLine, ShieldCheck, Smartphone } from 'lucide-react'
-import type { Contract, Party, Signature } from '../types'
+import type { Contract, GrammarForm, Party, Signature } from '../types'
+import { adapt } from '../lib/persona'
 import { SignaturePad, typedSignatureDataUrl, type SignaturePadHandle } from './SignaturePad'
 import { Button, Modal, Tabs, TextField } from './ui'
 import { nowIso } from '../lib/utils'
@@ -20,7 +21,7 @@ function maskPhone(p: string): string {
  * Podpis pod umową: na telefonie – palcem, na komputerze – kodem SMS (z możliwością narysowania myszką).
  * SMS działa w trybie demonstracyjnym: kod jest generowany lokalnie i pokazywany w podglądzie wiadomości.
  */
-export function SignModal({ open, onClose, c, party, defaultName, onSigned }: { open: boolean; onClose: () => void; c: Contract; party: Party; defaultName: string; onSigned: (sig: Signature) => void }) {
+export function SignModal({ open, onClose, c, party, defaultName, onSigned, form }: { open: boolean; onClose: () => void; c: Contract; party: Party; defaultName: string; onSigned: (sig: Signature) => void; form?: GrammarForm }) {
   const [mode, setMode] = useState<Mode>('draw')
   const [name, setName] = useState(defaultName)
   const [confirm, setConfirm] = useState(false)
@@ -148,7 +149,7 @@ export function SignModal({ open, onClose, c, party, defaultName, onSigned }: { 
 
         <label className="flex items-start gap-2.5 text-sm text-slate-700">
           <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} className="mt-0.5 size-4 accent-brand-600" />
-          <span>Zapoznałem(-am) się z treścią umowy w wersji {version} i ją akceptuję.</span>
+          <span>{adapt('Zapoznałem(-am) się', form)} z treścią umowy w wersji {version} i ją akceptuję.</span>
         </label>
         {error && (
           <p role="alert" className="text-sm font-medium text-red-700">

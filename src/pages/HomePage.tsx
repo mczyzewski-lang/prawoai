@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowRight, ArrowUp, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Upload } from 'lucide-react'
+import { AlertCircle, ArrowRight, Bookmark, ArrowUp, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Upload } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { ButtonLink, EmptyState, StatusBadge } from '../components/ui'
 import { displayStatus, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
@@ -16,7 +16,10 @@ export default function HomePage() {
   const contracts = [...state.contracts].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)))
   const awaiting = contracts.filter((c) => displayStatus(c, c.ownerPartyId) === 'awaiting')
   const firstName = state.profile.name.split(' ')[0]
-  const start = (q: string) => q.trim() && navigate(`/nowa?q=${encodeURIComponent(q.trim())}`)
+  const [myTpl, setMyTpl] = useState<string | null>(null)
+  const myTemplates = state.myTemplates ?? []
+  const selectedTpl = myTemplates.find((t) => t.id === myTpl)
+  const start = (q: string, tplId: string | null = null) => q.trim() && navigate(`/nowa?q=${encodeURIComponent(q.trim())}${tplId ? `&wzor=${tplId}` : ''}`)
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -40,7 +43,7 @@ export default function HomePage() {
               className="relative mt-4 flex-1 rounded-2xl bg-white p-2 shadow-xl"
               onSubmit={(e) => {
                 e.preventDefault()
-                start(prompt)
+                start(prompt, myTpl)
               }}
             >
               <label htmlFor="home-prompt" className="sr-only">
@@ -54,10 +57,10 @@ export default function HomePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    start(prompt)
+                    start(prompt, myTpl)
                   }
                 }}
-                placeholder="Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł"
+                placeholder={selectedTpl ? `Wklej dane drugiej strony do wzoru „${selectedTpl.name}” – np. nazwa, adres, NIP` : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł'}
                 className="w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-[16px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
               <div className="flex justify-end px-1 pb-1">
@@ -66,7 +69,37 @@ export default function HomePage() {
                 </button>
               </div>
             </form>
-            <div className="relative mt-4 flex flex-wrap gap-2">
+            {selectedTpl && (
+              <p className="relative mt-2 flex items-center gap-1.5 text-sm text-brand-200">
+                <Bookmark className="size-4" aria-hidden /> Tworzysz z wzoru „{selectedTpl.name}”
+                <button type="button" onClick={() => setMyTpl(null)} className="ml-1 rounded px-1 text-white/70 underline hover:text-white">
+                  zmień
+                </button>
+              </p>
+            )}
+            {myTemplates.length > 0 && (
+              <div className="relative mt-4">
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Twoje wzory</p>
+                <div className="flex flex-wrap gap-2">
+                  {myTemplates.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={myTpl === t.id}
+                      onClick={() => {
+                        setMyTpl(myTpl === t.id ? null : t.id)
+                        document.getElementById('home-prompt')?.focus()
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition ${myTpl === t.id ? 'bg-brand-400 text-ink-950 ring-brand-300' : 'bg-white/10 text-white ring-white/15 hover:bg-white/20'}`}
+                    >
+                      <Bookmark className="size-3.5" aria-hidden /> {t.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Nowa umowa</p>
+              </div>
+            )}
+            <div className={`relative flex flex-wrap gap-2 ${myTemplates.length ? '' : 'mt-4'}`}>
               {QUICK_STARTS.map((q) => (
                 <button key={q.label} type="button" onClick={() => start(q.prompt)} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/20">
                   {q.label}

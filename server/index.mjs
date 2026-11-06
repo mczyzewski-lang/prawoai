@@ -156,6 +156,12 @@ function upstreamError(status, message) {
   return Object.assign(new Error(msg), { status: 502, code })
 }
 
+function personaText(p) {
+  const name = String(p?.addressAs ?? '').replace(/[\r\n]+/g, ' ').slice(0, 40).trim()
+  const form = p?.form === 'f' ? 'Używaj form żeńskich (np. „otrzymałaś”, „jesteś pewna”).' : p?.form === 'm' ? 'Używaj form męskich (np. „otrzymałeś”, „jesteś pewien”).' : 'Unikaj form rodzajowych (pisz np. „masz”, „otrzymano”).'
+  return `Sposób zwracania się: ${name ? `zwracaj się do użytkownika po imieniu, w wołaczu: „${name}” – w pierwszej odpowiedzi i potem od czasu do czasu, nie w każdym zdaniu.` : 'bez imienia, na „Ty”.'} ${form}`
+}
+
 function perspectiveText(p) {
   const clean = (v) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, 120).trim()
   if (!p?.role) return 'Użytkownik nie wskazał swojej strony – oceniaj neutralnie, wskazując ryzyka dla obu stron.'
@@ -177,7 +183,7 @@ async function analyze(body) {
     model: MODEL,
     input: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `${perspectiveText(body?.perspective)}${contextText(body?.context)}\n\nOceń poniższą umowę. Zapisy są ponumerowane w nawiasach kwadratowych.\n\n${doc}` },
+      { role: 'user', content: `${personaText(body?.persona)}\n${perspectiveText(body?.perspective)}${contextText(body?.context)}\n\nOceń poniższą umowę. Zapisy są ponumerowane w nawiasach kwadratowych.\n\n${doc}` },
     ],
     text: { format: { type: 'json_schema', name: 'contract_analysis', strict: true, schema: SCHEMA } },
   }
@@ -312,7 +318,11 @@ async function intake(body) {
   if (!messages.length) throw Object.assign(new Error('Brak wiadomości.'), { status: 400, code: 'empty' })
   const catalogText = catalog.map((t) => `${clip(t.id, 60)} | ${clip(t.name, 120)} | A: ${clip(t.roles?.[0], 60)} | B: ${clip(t.roles?.[1], 60)} | ${clip(t.category, 60)}`).join('\n')
   const today = new Date().toISOString().slice(0, 10)
-  const context = `Katalog wzorów (id | nazwa | rola strony A | rola strony B | kategoria):\n${catalogText}\n\nAktualny stan projektu (JSON):\n${clip(JSON.stringify(body?.state ?? {}), 6000)}\n\nZapisane dane użytkownika (profil):\n${body?.savedOwnParty ? clip(JSON.stringify(body.savedOwnParty), 1500) : 'brak'}`
+  const mt = body?.myTemplate
+  const myTemplateText = mt?.name
+    ? `\n\nWAŻNE: Użytkownik tworzy umowę z WŁASNEGO wzoru „${clip(mt.name, 120)}” (templateId: "${clip(mt.templateId ?? '', 60)}"). Treść umowy jest gotowa – NIE pytaj o przedmiot, kwoty ani warunki, chyba że użytkownik sam chce coś zmienić. Użytkownik jest stroną ${mt.myRole === 'B' ? 'B' : 'A'} (${clip(mt.myRoleName, 60)}); druga strona: ${clip(mt.otherRoleName, 60)}. Zbierz dane drugiej strony z tekstu (nazwa, adres, NIP/PESEL, e-mail, reprezentacja). ready = true, gdy znasz nazwę drugiej strony. W answers.scope wpisz „(z Twojego wzoru)”.`
+    : ''
+  const context = `${personaText(body?.persona)}${myTemplateText}\n\nKatalog wzorów (id | nazwa | rola strony A | rola strony B | kategoria):\n${catalogText}\n\nAktualny stan projektu (JSON):\n${clip(JSON.stringify(body?.state ?? {}), 6000)}\n\nZapisane dane użytkownika (profil):\n${body?.savedOwnParty ? clip(JSON.stringify(body.savedOwnParty), 1500) : 'brak'}`
   const payload = {
     model: INTAKE_MODEL,
     input: [
@@ -323,6 +333,35 @@ async function intake(body) {
     text: { format: { type: 'json_schema', name: 'contract_intake', strict: true, schema: INTAKE_SCHEMA } },
   }
   return callModel(payload, process.env.OPENAI_INTAKE_EFFORT || 'low')
+}
+
+// ——— Własny wzór: dostosowanie treści do nowego kontrahenta ———
+const RETARGET_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['clauses'],
+  properties: { clauses: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['index', 'text'], properties: { index: { type: 'integer' }, text: S } } } },
+}
+
+async function retarget(body) {
+  const clauses = Array.isArray(body?.clauses) ? body.clauses.slice(0, 40) : []
+  if (!clauses.length) return { model: null, result: { clauses: [] } }
+  const payload = {
+    model: INTAKE_MODEL,
+    input: [
+      {
+        role: 'system',
+        content:
+          'Przenosisz gotową umowę na nowego kontrahenta. W podanych zapisach zamień WSZYSTKIE odniesienia do poprzedniego kontrahenta (nazwa w dowolnej odmianie, skróty nazwy, adres, NIP/KRS/PESEL, e-mail, osoba reprezentująca) na dane nowego kontrahenta, z poprawną polską odmianą i składnią. Jeśli jakiegoś elementu nowego kontrahenta brak, usuń odniesienie albo zastąp je neutralnym określeniem roli (np. „Zamawiający”). Nie zmieniaj niczego innego (kwot, terminów, warunków, numeracji, formatowania i podziału na linie). Zwróć pełny tekst tylko tych zapisów, które zmieniłeś.',
+      },
+      {
+        role: 'user',
+        content: `Poprzedni kontrahent: ${clip(JSON.stringify(body?.oldParty ?? {}), 1000)}\nNowy kontrahent: ${clip(JSON.stringify(body?.newParty ?? {}), 1000)}\n\nZapisy:\n${clauses.map((c) => `[${Number(c.index)}]\n${clip(c.text, 6000)}`).join('\n\n')}`,
+      },
+    ],
+    text: { format: { type: 'json_schema', name: 'retarget', strict: true, schema: RETARGET_SCHEMA } },
+  }
+  return callModel(payload, 'low')
 }
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff', '.json': 'application/json', '.ico': 'image/x-icon' }
@@ -353,6 +392,12 @@ createServer(async (req, res) => {
       const started = Date.now()
       const out = await analyze(body)
       console.log(`[analyze] ${out.model} · ${body.clauses.length} zapisów · ${out.result.findings?.length ?? 0} uwag · ${((Date.now() - started) / 1000).toFixed(1)} s`)
+      return send(res, 200, out)
+    }
+    if (req.url === '/api/retarget' && req.method === 'POST') {
+      if (!API_KEY) return send(res, 503, { error: 'Brak skonfigurowanego modelu AI.', code: 'not_configured' })
+      if (intakeLimited(req)) return send(res, 429, { error: 'Wykorzystano godzinny limit.', code: 'rate_limited' })
+      const out = await retarget(await readJson(req))
       return send(res, 200, out)
     }
     if (req.url === '/api/intake' && req.method === 'POST') {

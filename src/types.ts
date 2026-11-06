@@ -161,6 +161,10 @@ export interface ActivityItem {
 
 export interface Contract {
   id: string
+  /** Ostrzeżenie do sprawdzenia po utworzeniu (np. pozostałości danych poprzedniego kontrahenta). */
+  reviewNotice?: string
+  /** Użytkownik potwierdził swoje dane w umowie (dokumenty wgrane do analizy). */
+  ownDataConfirmed?: boolean
   title: string
   templateId?: string
   source: 'template' | 'upload' | 'paste'
@@ -203,6 +207,23 @@ export interface Profile {
   email: string
   /** Zapisane dane użytkownika jako strony umowy – do automatycznego uzupełniania. */
   ownParty?: SavedParty
+  /** Jak zwracać się do użytkownika (wołacz), np. „Katarzyno”. */
+  addressAs?: string
+  /** Formy gramatyczne w komunikatach: żeńskie, męskie lub neutralne. Wybór użytkownika. */
+  form?: GrammarForm
+}
+
+export type GrammarForm = 'f' | 'm' | 'n'
+
+/** Własny wzór użytkownika – zapisana umowa do ponownego użycia z innym kontrahentem. */
+export interface MyTemplate {
+  id: string
+  name: string
+  createdAt: string
+  templateId?: string
+  ownerPartyId: PartyId
+  parties: [Party, Party]
+  clauses: Clause[]
 }
 
 export type SavedParty = Pick<Party, 'kind' | 'name' | 'address' | 'idNumber' | 'email' | 'representative'>

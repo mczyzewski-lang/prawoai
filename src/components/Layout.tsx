@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck } from 'lucide-react'
+import { FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
+import { ProfileModal } from './ProfileModal'
 import { useStore } from '../store/AppStore'
 import { Alert, Avatar, Button, Modal } from './ui'
 import { cx } from '../lib/utils'
@@ -31,7 +32,8 @@ const NAV = [
 ]
 
 function ProfileMenu() {
-  const { state, resetDemo, updateProfile } = useStore()
+  const { state, resetDemo } = useStore()
+  const [profileOpen, setProfileOpen] = useState(false)
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -61,24 +63,21 @@ function ProfileMenu() {
             <p className="text-sm font-semibold text-ink-900">{state.profile.name}</p>
             <p className="truncate text-xs text-slate-500">{state.profile.email}</p>
           </div>
-          {state.profile.ownParty && (
-            <div className="mx-1 mb-1 rounded-xl bg-sand-50 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Moje dane do umów</p>
-              <p className="mt-0.5 truncate text-sm text-ink-900">{state.profile.ownParty.name}</p>
-              <p className="truncate text-xs text-slate-500">{[state.profile.ownParty.address, state.profile.ownParty.idNumber].filter(Boolean).join(' · ')}</p>
-              <button
-                role="menuitem"
-                type="button"
-                className="mt-1 text-xs font-medium text-red-700 hover:underline"
-                onClick={() => {
-                  updateProfile({ ...state.profile, ownParty: undefined })
-                  toast('Usunięto zapisane dane')
-                }}
-              >
-                Usuń zapisane dane
-              </button>
-            </div>
-          )}
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              setOpen(false)
+              setProfileOpen(true)
+            }}
+            className="flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            <UserCog className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              Mój profil i dane
+              <span className="block truncate text-xs text-slate-500">{state.profile.ownParty ? `Dane do umów: ${state.profile.ownParty.name}` : 'Brak zapisanych danych do umów'}</span>
+            </span>
+          </button>
           <div className="my-1 h-px bg-slate-100" />
           <Link role="menuitem" to="/umowy" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
             <FolderOpen className="size-4" aria-hidden /> Moje umowy
@@ -96,6 +95,7 @@ function ProfileMenu() {
           </button>
         </div>
       )}
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
       <Modal
         open={confirm}
         onClose={() => setConfirm(false)}

@@ -5,6 +5,7 @@ import { useStore } from '../store/AppStore'
 import { Alert, Button, Card, PageHeader, Tabs } from '../components/ui'
 import { analyzeContract, parseClauses } from '../lib/analyzer'
 import { extractText, ExtractError, MAX_FILE_MB } from '../lib/extract'
+import { personaFor } from '../lib/persona'
 import { analyzeWithAi, getAiStatus, AiAnalysisError, type AiStatus } from '../lib/aiAnalysis'
 import { SAMPLE_CONTRACT_TEXT } from '../data/sampleTexts'
 import type { AnalysisResult, Clause, Contract, PartyId } from '../types'
@@ -109,7 +110,7 @@ export default function AnalyzePage() {
     let analysis: AnalysisResult
     if (withAi) {
       try {
-        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined, context)
+        analysis = await analyzeWithAi(text, clauses, source, myParty ? { role: roleOf(idx), name: parties[idx]?.name ?? '', otherRole: roleOf(1 - idx) } : undefined, context, personaFor(state.profile))
       } catch (e) {
         setStage(-1)
         setAiError(e instanceof AiAnalysisError ? e.message : 'Nie udało się przeprowadzić analizy AI.')

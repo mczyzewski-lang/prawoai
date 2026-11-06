@@ -22,11 +22,13 @@ import {
 } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { TOPICS, detectTopic, getTopic, type Topic } from '../data/assistantTopics'
-import type { AssistantSummary, ChatMessage, Conversation } from '../types'
+import type { AssistantSummary, ChatMessage, Conversation, GrammarForm } from '../types'
 import { extractText, ExtractError } from '../lib/extract'
 import { analyzeContract, parseClauses } from '../lib/analyzer'
 import { cx, formatRelative, nowIso, sleep, uid, wordCount } from '../lib/utils'
-import { Alert, Button, EmptyState } from '../components/ui'
+import { Alert, Button, EmptyState, TextField } from '../components/ui'
+import { FormPicker } from '../components/ProfileModal'
+import { adapt, greet, personaFor, suggestVocative } from '../lib/persona'
 import { useToast } from '../components/Toast'
 
 const ICONS: Record<string, typeof Scale> = { rozwod: HeartCrack, umowy: Handshake, konsument: ShoppingBag, firma: Briefcase, znaki: Tag, dlugi: Receipt, inne: HelpCircle }
@@ -44,6 +46,7 @@ export default function AssistantPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const conv = state.conversations.find((c) => c.id === chatId)
+  const persona = personaFor(state.profile)
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [attachBusy, setAttachBusy] = useState(false)
@@ -86,7 +89,8 @@ export default function AssistantPage() {
     navigate(`/asystent/${id}`)
     setThinking(true)
     await sleep(900)
-    const intro = freeText && topic.id !== 'inne' ? `Dziękuję. Z opisu wynika, że sprawa może dotyczyć tematu: ${topic.title.toLowerCase()}. ${topic.intro}` : topic.intro
+    const baseIntro = freeText && topic.id !== 'inne' ? `Dziękuję. Z opisu wynika, że sprawa może dotyczyć tematu: ${topic.title.toLowerCase()}. ${topic.intro}` : topic.intro
+    const intro = greet(baseIntro, persona.addressAs)
     append(id, [msg('assistant', intro), questionMessage(topic, step)])
     setThinking(false)
   }
@@ -114,7 +118,7 @@ export default function AssistantPage() {
     } else {
       const firstUser = conv.messages.find((m) => m.role === 'user')?.text ?? ''
       const summary = t.summarize(answers, firstUser === t.title ? '' : firstUser)
-      append(conv.id, [msg('assistant', 'Dziękuję za odpowiedzi. Oto podsumowanie i propozycja kolejnych kroków:', { summary }), msg('assistant', 'Jeśli chcesz coś doprecyzować, napisz – uwzględnię to. Możesz też dołączyć dokument związany ze sprawą.', { quickReplies: ['Jakie dokumenty przygotować?', 'Jak wybrać prawnika?', 'Czy jest wzór umowy dla mojej sprawy?'] })], {
+      append(conv.id, [msg('assistant', greet('Dziękuję za odpowiedzi. Oto podsumowanie i propozycja kolejnych kroków:', persona.addressAs), { summary }), msg('assistant', 'Jeśli chcesz coś doprecyzować, napisz – uwzględnię to. Możesz też dołączyć dokument związany ze sprawą.', { quickReplies: ['Jakie dokumenty przygotować?', 'Jak wybrać prawnika?', 'Czy jest wzór umowy dla mojej sprawy?'] })], {
         step: next,
         answers,
         done: true,
@@ -195,7 +199,7 @@ export default function AssistantPage() {
         ) : !conv ? (
           <StartScreen onTopic={(t) => start(t)} onFree={(text) => start(detectTopic(text), text)} />
         ) : (
-          <div className="flex min-h-[70dvh] flex-col rounded-3xl bg-white ring-1 ring-slate-200">
+          <div className="fixed inset-0 z-40 flex flex-col bg-white lg:static lg:z-auto lg:h-[calc(100dvh-8.5rem)] lg:rounded-3xl lg:ring-1 lg:ring-slate-200">
             <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 sm:px-6">
               <Link to="/asystent" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Wróć do listy rozmów">
                 <X className="size-5" />
@@ -211,7 +215,7 @@ export default function AssistantPage() {
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite">
               {conv.messages.map((m, i) => (
-                <Bubble key={m.id} m={m} isLast={i === conv.messages.length - 1} onQuick={answer} disabled={thinking} />
+                <Bubble key={m.id} m={m} isLast={i === conv.messages.length - 1} onQuick={answer} disabled={thinking} form={persona.form} />
               ))}
               {thinking && (
                 <div className="flex items-center gap-2" role="status" aria-label="Asystent pisze">
@@ -228,7 +232,7 @@ export default function AssistantPage() {
               <div ref={endRef} />
             </div>
 
-            <div className="safe-bottom sticky bottom-16 rounded-b-3xl border-t border-slate-100 bg-white p-3 sm:p-4 md:bottom-0">
+            <div className="safe-bottom border-t border-slate-100 bg-white p-3 sm:p-4 lg:rounded-b-3xl">
               {attachError && (
                 <Alert tone="error" className="mb-2" onClose={() => setAttachError(null)}>
                   {attachError}
@@ -282,6 +286,30 @@ export default function AssistantPage() {
   )
 }
 
+function PersonaCard() {
+  const { state, updateProfile } = useStore()
+  const [addressAs, setAddressAs] = useState(state.profile.addressAs ?? suggestVocative(state.profile.name))
+  const [form, setForm] = useState<GrammarForm | undefined>(state.profile.form)
+  if (state.profile.form) return null
+  return (
+    <div className="mt-5 rounded-3xl bg-brand-50/70 p-4 ring-1 ring-brand-100 sm:p-5">
+      <p className="font-semibold text-ink-900">Zanim zaczniemy: jak mam się do Ciebie zwracać?</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-[220px_1fr] sm:items-end">
+        <TextField label="Zwracaj się do mnie" value={addressAs} onChange={(e) => setAddressAs(e.target.value)} hint="Np. „Katarzyno”, „Kasiu”" />
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-slate-800">Formy w rozmowie</p>
+          <FormPicker value={form} onChange={setForm} />
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button size="sm" variant="primary" disabled={!form} onClick={() => updateProfile({ ...state.profile, addressAs: addressAs.trim(), form })}>
+          Zapisz
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function StartScreen({ onTopic, onFree }: { onTopic: (t: Topic) => void; onFree: (text: string) => void }) {
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -296,6 +324,7 @@ function StartScreen({ onTopic, onFree }: { onTopic: (t: Topic) => void; onFree:
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Asystent AI</p>
       <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-900 sm:text-3xl">Porozmawiaj z AI</h1>
+      <PersonaCard />
       <p className="mt-1.5 max-w-2xl text-[15px] text-slate-600">Opisz sprawę własnymi słowami lub wybierz temat. Asystent zada kilka pytań, a potem podsumuje sytuację i zaproponuje kolejne kroki.</p>
 
       <div className="mt-5 rounded-3xl bg-white p-4 ring-1 ring-slate-200 sm:p-5">
@@ -350,7 +379,7 @@ function StartScreen({ onTopic, onFree }: { onTopic: (t: Topic) => void; onFree:
   )
 }
 
-function Bubble({ m, isLast, onQuick, disabled }: { m: ChatMessage; isLast: boolean; onQuick: (t: string) => void; disabled: boolean }) {
+function Bubble({ m, isLast, onQuick, disabled, form }: { m: ChatMessage; isLast: boolean; onQuick: (t: string) => void; disabled: boolean; form: GrammarForm }) {
   if (m.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -360,7 +389,7 @@ function Bubble({ m, isLast, onQuick, disabled }: { m: ChatMessage; isLast: bool
               <FileText className="size-4" aria-hidden /> {m.attachment.name} · {m.attachment.words} słów
             </span>
           )}
-          <p className="whitespace-pre-wrap">{m.text}</p>
+          <p className="whitespace-pre-wrap">{adapt(m.text, form)}</p>
         </div>
       </div>
     )
@@ -372,14 +401,14 @@ function Bubble({ m, isLast, onQuick, disabled }: { m: ChatMessage; isLast: bool
       </span>
       <div className="min-w-0 max-w-[90%] space-y-2">
         <div className="rounded-2xl rounded-tl-md bg-sand-50 px-4 py-2.5 text-[15px] leading-relaxed text-slate-800 ring-1 ring-slate-200">
-          <p className="whitespace-pre-wrap">{m.text}</p>
+          <p className="whitespace-pre-wrap">{adapt(m.text, form)}</p>
         </div>
-        {m.summary && <SummaryCard s={m.summary} />}
+        {m.summary && <SummaryCard s={m.summary} form={form} />}
         {isLast && m.quickReplies && (
           <div className="flex flex-wrap gap-2 pt-1">
             {m.quickReplies.map((q) => (
-              <button key={q} type="button" disabled={disabled} onClick={() => onQuick(q)} className="rounded-full bg-white px-3.5 py-2 text-sm font-medium text-ink-800 ring-1 ring-slate-300 transition hover:bg-brand-50 hover:ring-brand-400 disabled:opacity-50">
-                {q}
+              <button key={q} type="button" disabled={disabled} onClick={() => onQuick(adapt(q, form))} className="rounded-full bg-white px-3.5 py-2 text-sm font-medium text-ink-800 ring-1 ring-slate-300 transition hover:bg-brand-50 hover:ring-brand-400 disabled:opacity-50">
+                {adapt(q, form)}
               </button>
             ))}
           </div>
@@ -389,7 +418,9 @@ function Bubble({ m, isLast, onQuick, disabled }: { m: ChatMessage; isLast: bool
   )
 }
 
-function SummaryCard({ s }: { s: AssistantSummary }) {
+function SummaryCard({ s: raw, form }: { s: AssistantSummary; form: GrammarForm }) {
+  const a = (t: string) => adapt(t, form)
+  const s: AssistantSummary = { situation: a(raw.situation), steps: raw.steps.map(a), documents: raw.documents.map(a), lawyer: { ...raw.lawyer, reason: a(raw.lawyer.reason) } }
   return (
     <div className="animate-fade-up overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
       <div className="border-b border-slate-100 bg-brand-50/60 px-4 py-3">

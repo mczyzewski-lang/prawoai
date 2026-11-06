@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowUp, BookmarkCheck, Building2, Check, ChevronDown, Circle, FilePlus2, LayoutTemplate, ListChecks, RotateCcw, Sparkles, User } from 'lucide-react'
+import { ArrowLeft, ArrowUp, BookmarkCheck, Building2, Check, ChevronDown, Circle, FilePlus2, LayoutTemplate, ListChecks, RotateCcw, Sparkles, User } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/Toast'
 import { Alert, Button, ButtonLink, Card } from '../components/ui'
@@ -8,6 +8,8 @@ import { getTemplate } from '../data/templates'
 import { getAiStatus, type AiStatus } from '../lib/aiAnalysis'
 import {
   buildContractFromIntake,
+  buildContractFromMyTemplate,
+  retargetMyTemplateContract,
   emptyIntake,
   guessTemplate,
   IntakeError,
@@ -20,7 +22,9 @@ import {
   type IntakeParty,
   type IntakeState,
 } from '../lib/intake'
-import type { ChatMessage } from '../types'
+import type { ChatMessage, MyTemplate, SavedParty } from '../types'
+import { personaFor } from '../lib/persona'
+import { OwnDataModal } from '../components/OwnDataModal'
 import { cx, formatDate, formatMoney, nowIso, uid } from '../lib/utils'
 
 const KEY = 'prawoai:intake'
@@ -46,6 +50,7 @@ const msg = (role: ChatMessage['role'], text: string, extra: Partial<ChatMessage
 
 export default function NewContractPage() {
   const { state: app, updateProfile, upsertContract } = useStore()
+  const persona = personaFor(app.profile)
   const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -86,11 +91,12 @@ export default function NewContractPage() {
     setError(null)
     setThinking(true)
     try {
-      const res = await sendIntake(messages, current.state, app.profile.ownParty)
+      const mt = (app.myTemplates ?? []).find((x) => x.id === current.state.myTemplateId)
+      const res = await sendIntake(messages, current.state, app.profile.ownParty, { persona, myTemplate: mt })
       const { reply, quickReplies, ownDataInLastMessage, ...state } = res
       const assistant = msg('assistant', reply, { quickReplies })
       const own = ownPartyOf(state)
-      const ask = ownDataInLastMessage && ownDataDiffers(own, app.profile.ownParty) && current.saveAsk?.status !== 'dismissed'
+      const ask = !mt && ownDataInLastMessage && ownDataDiffers(own, app.profile.ownParty) && current.saveAsk?.status !== 'dismissed'
       setData({ messages: [...messages, assistant], state, saveAsk: ask ? { messageId: assistant.id, status: 'pending' } : current.saveAsk })
     } catch (e) {
       setError(e instanceof IntakeError ? e.message : 'Nie udało się przetworzyć wiadomości.')
@@ -105,9 +111,10 @@ export default function NewContractPage() {
     const q = params.get('q')
     if (!q || started.current || ai === null) return
     started.current = true
+    const mt = (app.myTemplates ?? []).find((x) => x.id === params.get('wzor'))
     setParams({}, { replace: true })
     if (!ai.ai) return
-    const fresh: Saved = { messages: [], state: emptyIntake(), saveAsk: null }
+    const fresh: Saved = { messages: [], state: mt ? stateFromMyTemplate(mt) : emptyIntake(), saveAsk: null }
     void send(q, fresh)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ai, params])
@@ -118,26 +125,39 @@ export default function NewContractPage() {
   }
 
   const s = data.state
+  const myTpl = (app.myTemplates ?? []).find((x) => x.id === s.myTemplateId)
   const tpl = getTemplate(s.templateId)
-  const canCreate = !!tpl && !!s.partyA.name && !!s.partyB.name && !!s.answers.scope
+  const canCreate = myTpl ? !!(s.myRole === 'A' ? s.partyB.name : s.partyA.name) : !!tpl && !!s.partyA.name && !!s.partyB.name && !!s.answers.scope
   const own = ownPartyOf(s)
+  const prog = progress(s, !!myTpl)
 
-  const create = () => {
-    if (!canCreate) return
-    const c = buildContractFromIntake(s, app.profile.name)
+  const [creating, setCreating] = useState(false)
+  const create = async () => {
+    if (!canCreate || creating) return
+    let c = myTpl ? buildContractFromMyTemplate(myTpl, s, app.profile.name) : buildContractFromIntake(s, app.profile.name)
+    if (myTpl) {
+      setCreating(true)
+      c = await retargetMyTemplateContract(c, myTpl, !!ai?.ai)
+      setCreating(false)
+    }
     upsertContract(c)
     localStorage.removeItem(KEY)
     toast('Projekt umowy jest gotowy – możesz go edytować i wysłać kontrahentowi')
     navigate(`/umowy/${c.id}`)
   }
 
-  const saveOwn = (yes: boolean) => {
+  const confirmOwn = (edited: SavedParty | null, save: boolean) => {
     if (!data.saveAsk) return
-    if (yes && own) {
-      updateProfile({ ...app.profile, ownParty: toSavedParty(own) })
-      toast('Zapisano Twoje dane – uzupełnimy je automatycznie w kolejnych umowach')
+    let state = data.state
+    if (edited && state.myRole) {
+      const p: IntakeParty = { ...edited }
+      state = state.myRole === 'A' ? { ...state, partyA: p } : { ...state, partyB: p }
+      if (save) {
+        updateProfile({ ...app.profile, ownParty: edited })
+        toast('Zapisano Twoje dane w Prawo.ai – użyjemy ich w kolejnych umowach i pismach')
+      }
     }
-    setData({ ...data, saveAsk: { ...data.saveAsk, status: yes ? 'saved' : 'dismissed' } })
+    setData({ ...data, state, saveAsk: { ...data.saveAsk, status: edited && save ? 'saved' : 'dismissed' } })
   }
 
   const fallbackTemplate = guessTemplate(initialQ.current || data.messages[0]?.text || '')
@@ -166,38 +186,52 @@ export default function NewContractPage() {
   }
 
   return (
-    <div>
-      <div className="mx-auto max-w-3xl">
-        <Header onReset={data.messages.length ? reset : undefined} />
+    <div className="fixed inset-0 z-40 flex flex-col bg-sand-50 lg:static lg:z-auto lg:mx-auto lg:h-[calc(100dvh-8.5rem)] lg:max-w-3xl lg:bg-transparent">
+        <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 lg:hidden">
+          <Link to="/" className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Wróć na stronę główną">
+            <ArrowLeft className="size-5" />
+          </Link>
+          <p className="flex-1 truncate font-semibold text-ink-900">{myTpl ? `Z wzoru: ${myTpl.name}` : 'Nowa umowa'}</p>
+          {data.messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={reset} icon={<RotateCcw className="size-4" />}>
+              Od nowa
+            </Button>
+          )}
+        </div>
+        <div className="hidden lg:block">
+          <Header onReset={data.messages.length ? reset : undefined} />
+        </div>
         {data.messages.length > 0 && (
-          <div className="sticky top-16 z-20 -mx-4 mb-3 bg-sand-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0">
+          <div className="shrink-0 px-3 pt-2 lg:mb-3 lg:px-0 lg:pt-0">
             <div className="rounded-2xl bg-white ring-1 ring-slate-200">
               <div className="flex items-center gap-3 px-4 py-2.5">
                 <button type="button" onClick={() => setSummaryOpen((o) => !o)} aria-expanded={summaryOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm">
                   <ListChecks className="size-4 shrink-0 text-brand-700" aria-hidden />
-                  <span className="truncate font-medium text-ink-900">{tpl ? s.title || tpl.name : 'Twój projekt'}</span>
-                  <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">· {progress(s)}/5 gotowe</span>
+                  <span className="truncate font-medium text-ink-900">{myTpl ? myTpl.name : tpl ? s.title || tpl.name : 'Twój projekt'}</span>
+                  <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">
+                    · {prog.done}/{prog.total} gotowe
+                  </span>
                   <ChevronDown className={cx('size-4 shrink-0 text-slate-500 transition', summaryOpen && 'rotate-180')} aria-hidden />
                 </button>
-                <Button size="sm" variant="accent" disabled={!canCreate} onClick={create} icon={<FilePlus2 className="size-4" />}>
+                <Button size="sm" variant="accent" disabled={!canCreate} loading={creating} onClick={create} icon={<FilePlus2 className="size-4" />}>
                   <span className="hidden sm:inline">Utwórz projekt</span>
                   <span className="sm:hidden">Utwórz</span>
                 </Button>
               </div>
               <div className="h-1 overflow-hidden rounded-b-2xl bg-slate-100">
-                <div className="h-full bg-brand-500 transition-all" style={{ width: `${(progress(s) / 5) * 100}%` }} />
+                <div className="h-full bg-brand-500 transition-all" style={{ width: `${(prog.done / prog.total) * 100}%` }} />
               </div>
               {summaryOpen && (
                 <div className="max-h-[60dvh] overflow-y-auto border-t border-slate-100 px-4 pb-4">
-                  <Summary s={s} canCreate={canCreate} onCreate={create} onWizard={() => navigate(seedWizard(s))} compact />
+                  <Summary s={s} canCreate={canCreate} onCreate={create} onWizard={() => navigate(seedWizard(s))} compact myTemplateName={myTpl?.name} />
                 </div>
               )}
             </div>
           </div>
         )}
-        <section className="flex min-h-[calc(100dvh-15rem)] flex-col rounded-3xl bg-white ring-1 ring-slate-200" aria-label="Rozmowa">
+        <section className="m-0 flex min-h-0 flex-1 flex-col bg-white lg:rounded-3xl lg:ring-1 lg:ring-slate-200" aria-label="Rozmowa">
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite">
-            {data.messages.length === 0 && !thinking && <Intro onPick={(p) => send(p)} hasSaved={!!app.profile.ownParty} savedName={app.profile.ownParty?.name} />}
+            {data.messages.length === 0 && !thinking && <Intro onPick={(p) => send(p)} hasSaved={!!app.profile.ownParty} savedName={app.profile.ownParty?.name} addressAs={persona.addressAs} />}
             {data.messages.map((m, i) => (
               <div key={m.id}>
                 {m.role === 'user' ? (
@@ -211,8 +245,10 @@ export default function NewContractPage() {
                     </span>
                     <div className="min-w-0 max-w-[90%] space-y-2">
                       <p className="whitespace-pre-wrap rounded-2xl rounded-tl-md bg-sand-50 px-4 py-2.5 text-[15px] leading-relaxed text-slate-800 ring-1 ring-slate-200">{m.text}</p>
-                      {data.saveAsk?.messageId === m.id && own && (
-                        <SaveOwnCard party={own} status={data.saveAsk.status} onDecide={saveOwn} replace={!!app.profile.ownParty} />
+                      {data.saveAsk?.messageId === m.id && data.saveAsk.status === 'saved' && (
+                        <p className="flex items-center gap-1.5 text-sm font-medium text-brand-800">
+                          <BookmarkCheck className="size-4" aria-hidden /> Zapisano Twoje dane w Prawo.ai
+                        </p>
                       )}
                       {i === data.messages.length - 1 && !thinking && m.quickReplies && m.quickReplies.length > 0 && (
                         <div className="flex flex-wrap gap-2 pt-1">
@@ -248,7 +284,7 @@ export default function NewContractPage() {
             <div ref={endRef} />
           </div>
 
-          <div className="safe-bottom sticky bottom-16 rounded-b-3xl border-t border-slate-100 bg-white p-3 sm:p-4 md:bottom-0">
+          <div className="safe-bottom shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4 lg:rounded-b-3xl">
             {error && (
               <Alert tone="error" className="mb-2" onClose={() => setError(null)}>
                 {error}
@@ -283,15 +319,38 @@ export default function NewContractPage() {
             <p className="mt-2 text-center text-[11px] text-slate-500">Możesz wkleić dane stron w dowolnej formie – asystent sam je rozpozna. Projekt to wzór przykładowy do sprawdzenia.</p>
           </div>
         </section>
-
-      </div>
+      <OwnDataModal
+        open={data.saveAsk?.status === 'pending' && !!own}
+        initial={own ? toSavedParty(own) : { kind: 'osoba', name: '', address: '', idNumber: '', email: '', representative: '' }}
+        role={tpl && s.myRole ? tpl.roles[s.myRole === 'A' ? 0 : 1] : undefined}
+        alreadySaved={!!app.profile.ownParty}
+        onConfirm={(d, save) => confirmOwn(d, save)}
+        onClose={() => confirmOwn(null, false)}
+      />
     </div>
   )
 }
 
-function progress(s: IntakeState): number {
+function progress(s: IntakeState, fromMyTemplate: boolean): { done: number; total: number } {
+  if (fromMyTemplate) return { done: 2 + (s.myRole === 'A' ? (s.partyB.name ? 1 : 0) : s.partyA.name ? 1 : 0), total: 3 }
   const tpl = getTemplate(s.templateId)
-  return [!!tpl, !!s.myRole, !!s.partyA.name && !!s.partyB.name, !!s.answers.scope, !!s.answers.amount || (!!tpl && !tpl.fields.includes('amount'))].filter(Boolean).length
+  const done = [!!tpl, !!s.myRole, !!s.partyA.name && !!s.partyB.name, !!s.answers.scope, !!s.answers.amount || (!!tpl && !tpl.fields.includes('amount'))].filter(Boolean).length
+  return { done, total: 5 }
+}
+
+function stateFromMyTemplate(mt: MyTemplate): IntakeState {
+  const base = emptyIntake()
+  const own = mt.parties.find((p) => p.id === mt.ownerPartyId)!
+  const ownIntake: IntakeParty = { kind: own.kind, name: own.name, address: own.address, idNumber: own.idNumber, email: own.email, representative: own.representative }
+  return {
+    ...base,
+    templateId: mt.templateId ?? '',
+    myTemplateId: mt.id,
+    myRole: mt.ownerPartyId,
+    partyA: mt.ownerPartyId === 'A' ? ownIntake : base.partyA,
+    partyB: mt.ownerPartyId === 'B' ? ownIntake : base.partyB,
+    answers: { ...base.answers, scope: '(z Twojego wzoru)' },
+  }
 }
 
 function Header({ onReset }: { onReset?: () => void }) {
@@ -310,11 +369,11 @@ function Header({ onReset }: { onReset?: () => void }) {
   )
 }
 
-function Intro({ onPick, hasSaved, savedName }: { onPick: (p: string) => void; hasSaved: boolean; savedName?: string }) {
+function Intro({ onPick, hasSaved, savedName, addressAs }: { onPick: (p: string) => void; hasSaved: boolean; savedName?: string; addressAs: string }) {
   return (
     <div className="py-4">
       <p className="text-[15px] leading-relaxed text-slate-700">
-        Napisz własnymi słowami, czego dotyczy umowa i z kim ją zawierasz. Dopytam o brakujące informacje, a potem przygotuję projekt, który możesz edytować i wysłać drugiej stronie.
+        {addressAs ? `${addressAs}, n` : 'N'}apisz własnymi słowami, czego dotyczy umowa i z kim ją zawierasz. Dopytam o brakujące informacje, a potem przygotuję projekt, który możesz edytować i wysłać drugiej stronie.
       </p>
       {hasSaved && (
         <p className="mt-2 flex items-center gap-1.5 text-sm text-brand-800">
@@ -333,50 +392,22 @@ function Intro({ onPick, hasSaved, savedName }: { onPick: (p: string) => void; h
   )
 }
 
-function SaveOwnCard({ party, status, onDecide, replace }: { party: IntakeParty; status: 'pending' | 'saved' | 'dismissed'; onDecide: (yes: boolean) => void; replace: boolean }) {
-  if (status === 'dismissed') return null
-  return (
-    <div className="animate-fade-up rounded-2xl bg-white p-4 ring-1 ring-brand-200">
-      {status === 'saved' ? (
-        <p className="flex items-center gap-2 text-sm font-medium text-brand-800">
-          <Check className="size-4" aria-hidden /> Zapisano Twoje dane w profilu.
-        </p>
-      ) : (
-        <>
-          <p className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-            <BookmarkCheck className="size-4 text-brand-700" aria-hidden /> {replace ? 'Zaktualizować zapisane dane?' : 'Zapisać Twoje dane na przyszłość?'}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">W kolejnych umowach uzupełnimy je automatycznie i nie będziemy o nie pytać.</p>
-          <dl className="mt-2 space-y-0.5 rounded-xl bg-sand-50 p-3 text-sm">
-            <div className="font-medium text-ink-900">{party.name}</div>
-            {party.address && <div className="text-slate-700">{party.address}</div>}
-            {party.idNumber && <div className="text-slate-700">{party.kind === 'osoba' ? 'PESEL' : 'NIP/KRS'}: {party.idNumber}</div>}
-            {party.email && <div className="text-slate-700">{party.email}</div>}
-          </dl>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="primary" onClick={() => onDecide(true)}>
-              {replace ? 'Zaktualizuj' : 'Zapisz dane'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => onDecide(false)}>
-              Nie teraz
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function Summary({ s, canCreate, onCreate, onWizard, compact }: { s: IntakeState; canCreate: boolean; onCreate: () => void; onWizard: () => void; compact?: boolean }) {
+function Summary({ s, canCreate, onCreate, onWizard, compact, myTemplateName }: { s: IntakeState; canCreate: boolean; onCreate: () => void; onWizard: () => void; compact?: boolean; myTemplateName?: string }) {
   const tpl = getTemplate(s.templateId)
   const a = s.answers
-  const steps: [string, boolean][] = [
+  const steps: [string, boolean][] = myTemplateName
+    ? [
+        ['Twój wzór', true],
+        ['Twoje dane', true],
+        ['Dane drugiej strony', !!(s.myRole === 'A' ? s.partyB.name : s.partyA.name)],
+      ]
+    : [
     ['Rodzaj umowy', !!tpl],
     ['Twoja rola', !!s.myRole],
     ['Strony umowy', !!s.partyA.name && !!s.partyB.name],
     ['Przedmiot umowy', !!a.scope],
     ['Wynagrodzenie / kwota', !!a.amount || (!!tpl && !tpl.fields.includes('amount'))],
-  ]
+      ]
   const done = steps.filter(([, ok]) => ok).length
   const partyLine = (p: IntakeParty, role: string, isMe: boolean) => (
     <div className="rounded-xl bg-sand-50 p-3">
@@ -413,7 +444,15 @@ function Summary({ s, canCreate, onCreate, onWizard, compact }: { s: IntakeState
           </li>
         ))}
       </ul>
-      {tpl && (
+      {myTemplateName && (
+        <div className="mt-4 space-y-2">
+          <p className="font-serif text-[15px] font-semibold text-ink-900">{myTemplateName}</p>
+          <p className="text-xs text-slate-500">Treść umowy z Twojego wzoru – uzupełniamy dane drugiej strony.</p>
+          {partyLine(s.partyA, s.myRole === 'A' ? 'Ty' : 'Druga strona', s.myRole === 'A')}
+          {partyLine(s.partyB, s.myRole === 'B' ? 'Ty' : 'Druga strona', s.myRole === 'B')}
+        </div>
+      )}
+      {tpl && !myTemplateName && (
         <div className="mt-4 space-y-2">
           <p className="font-serif text-[15px] font-semibold text-ink-900">{s.title || tpl.name}</p>
           <p className="text-xs text-slate-500">Wzór: {tpl.name}</p>
@@ -450,12 +489,12 @@ function Summary({ s, canCreate, onCreate, onWizard, compact }: { s: IntakeState
         <Button variant="accent" className="w-full" disabled={!canCreate} onClick={onCreate} icon={<FilePlus2 className="size-4" />}>
           Utwórz projekt umowy
         </Button>
-        {tpl && (
+        {tpl && !myTemplateName && (
           <Button variant="secondary" className="w-full" onClick={onWizard}>
             Dopracuj w kreatorze krok po kroku
           </Button>
         )}
-        {!canCreate && <p className="text-center text-xs text-slate-500">Uzupełnij rodzaj umowy, strony i przedmiot, aby utworzyć projekt.</p>}
+        {!canCreate && <p className="text-center text-xs text-slate-500">{myTemplateName ? 'Podaj dane drugiej strony, aby utworzyć umowę.' : 'Uzupełnij rodzaj umowy, strony i przedmiot, aby utworzyć projekt.'}</p>}
         {!tpl && (
           <p className="text-center text-xs text-slate-500">
             Wolisz formularz?{' '}

@@ -39,6 +39,11 @@ Na stronie głównej wpisujesz własnymi słowami, jaką umowę potrzebujesz (al
 
 Zmienne: `OPENAI_INTAKE_MODEL` (domyślnie jak `OPENAI_MODEL`), `OPENAI_INTAKE_EFFORT` (domyślnie `low`), `INTAKE_LIMIT_PER_HOUR` (domyślnie 80 wiadomości na IP).
 
+### Moje wzory i moje dane
+
+- W widoku umowy ikoną zakładki zapisujesz ją jako **własny wzór**. Na stronie głównej wybierasz go w sekcji „Twoje wzory”, wklejasz tylko dane drugiej strony – model je rozpoznaje, a `POST /api/retarget` przeredagowuje odniesienia do poprzedniego kontrahenta (z poprawną odmianą). Pozostałości są zgłaszane do sprawdzenia.
+- Gdy w rozmowie lub w analizowanej umowie pojawią się Twoje dane, aplikacja pokazuje okno „Czy to Twoje dane?” z przełącznikiem „Zapisz jako moje dane w Prawo.ai”. Zapisane dane (oraz imię w wołaczu i formy gramatyczne) edytujesz w menu konta → „Mój profil i dane”.
+
 ## Ocena umów przez OpenAI
 
 Analiza w sekcji **Analizuj umowę** korzysta z modelu OpenAI, jeśli serwer ma ustawiony `OPENAI_API_KEY`:

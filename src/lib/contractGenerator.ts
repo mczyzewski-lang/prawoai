@@ -59,7 +59,7 @@ export function labelFor(t: TemplateDefinition, key: FieldKey): string {
   return t.labels?.[key] ?? FIELD_LABELS[key]
 }
 
-function partyLine(p: Party): string {
+export function partyLine(p: Party): string {
   const id = p.idNumber ? (p.kind === 'firma' ? `, NIP/KRS: ${p.idNumber}` : `, PESEL: ${p.idNumber}`) : ''
   const addr = p.address ? `, ${p.kind === 'firma' ? 'z siedzibą' : 'zamieszkała/y'}: ${p.address}` : ''
   const rep = p.kind === 'firma' && p.representative ? `, reprezentowana/y przez: ${p.representative}` : ''

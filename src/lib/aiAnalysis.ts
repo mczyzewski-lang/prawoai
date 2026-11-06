@@ -81,13 +81,13 @@ export function defaultInsertAfter(clauses: Clause[]): string | undefined {
   return (finalIdx > 0 ? clauses[finalIdx - 1] : clauses[clauses.length - 1])?.id
 }
 
-export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective, context?: string): Promise<AnalysisResult> {
+export async function analyzeWithAi(text: string, clauses: Clause[], sourceName: string, perspective?: Perspective, context?: string, persona?: { addressAs: string; form: string }): Promise<AnalysisResult> {
   let r: Response
   try {
     r = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })), perspective, context }),
+      body: JSON.stringify({ clauses: clauses.map((c) => ({ title: c.title, text: c.text })), perspective, context, persona }),
     })
   } catch {
     throw new AiAnalysisError('Brak połączenia z serwerem analizy.', 'network')
