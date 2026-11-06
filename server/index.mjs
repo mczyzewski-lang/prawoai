@@ -24,6 +24,10 @@ const KEY_ENV =
   ['OPENAI_API_KEY', 'OPENAI_KEY', 'OPENAI_APIKEY', 'OPENAI_TOKEN'].find((k) => cleanKey(process.env[k])) ??
   OPENAI_ENV_NAMES.find((k) => /^openai_?(api_?)?key$/i.test(k.trim()) && cleanKey(process.env[k])) ??
   null
+// Diagnostyka wdrożenia: tylko NAZWY zmiennych ustawionych przez użytkownika (bez wartości i zmiennych systemowych).
+const SYSTEM_ENV = /^(PATH|HOME|HOSTNAME|PWD|SHLVL|TERM|LANG|LC_.*|_|PORT|NODE_.*|NPM_.*|npm_.*|YARN_.*|RAILWAY_.*|NIXPACKS_.*|CI|DEBIAN_FRONTEND|SSL_.*|HTTPS?_PROXY|NO_PROXY|https?_proxy|no_proxy|OLDPWD|USER|SHELL|MAIL|LOGNAME|COREPACK_.*|PYTHON.*|PIP_.*|XDG_.*|APP_.*|SOURCE_COMMIT|API_PORT)$/
+const USER_ENV_NAMES = Object.keys(process.env).filter((k) => !SYSTEM_ENV.test(k)).sort()
+const DEPLOY = { service: process.env.RAILWAY_SERVICE_NAME || null, environment: process.env.RAILWAY_ENVIRONMENT_NAME || null, userEnvNames: USER_ENV_NAMES }
 const API_KEY = KEY_ENV ? cleanKey(process.env[KEY_ENV]) : ''
 const MODEL = process.env.OPENAI_MODEL?.trim() || 'gpt-5.5'
 const BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, '')
@@ -466,7 +470,7 @@ async function serveStatic(req, res) {
 
 createServer(async (req, res) => {
   try {
-    if (req.url === '/api/status' && req.method === 'GET') return send(res, 200, { ai: !!API_KEY, provider: 'openai', model: API_KEY ? MODEL : null, keyEnv: KEY_ENV, openaiEnvNames: OPENAI_ENV_NAMES, keyLooksValid: API_KEY ? /^sk-[A-Za-z0-9_-]{20,}$/.test(API_KEY) : null, version: APP_VERSION, commit: APP_COMMIT, startedAt: STARTED_AT, node: process.version }, { 'Cache-Control': 'no-store' })
+    if (req.url === '/api/status' && req.method === 'GET') return send(res, 200, { ai: !!API_KEY, provider: 'openai', model: API_KEY ? MODEL : null, keyEnv: KEY_ENV, openaiEnvNames: OPENAI_ENV_NAMES, keyLooksValid: API_KEY ? /^sk-[A-Za-z0-9_-]{20,}$/.test(API_KEY) : null, deploy: DEPLOY, version: APP_VERSION, commit: APP_COMMIT, startedAt: STARTED_AT, node: process.version }, { 'Cache-Control': 'no-store' })
     if (req.url === '/api/analyze' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Analiza AI nie jest skonfigurowana.', code: 'not_configured' })
       if (rateLimited(req)) return send(res, 429, { error: `Wykorzystano limit ${LIMIT_PER_HOUR} analiz na godzinę. Spróbuj później lub użyj analizy podstawowej.`, code: 'rate_limited' })

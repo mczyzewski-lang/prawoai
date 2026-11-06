@@ -853,6 +853,11 @@ function AnalysisOverview({ c, filter, onFilter, compactDetails }: { c: Contract
             <Lock className="size-3" aria-hidden /> widoczne tylko dla Ciebie
           </span>
         </div>
+        {a.engine !== 'ai' && (
+          <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+            <span className="font-semibold">To tylko analiza podstawowa</span> – wykrywa typowe brakujące zapisy, ale nie ocenia warunków (płatności, kar, gwarancji, odbioru) z punktu widzenia Twojego interesu. Pełną ocenę przygotowuje model AI, który w tej chwili nie był dostępny – po jego włączeniu przeanalizuj umowę ponownie.
+          </p>
+        )}
         {a.perspective && (
           <p className="mt-1 text-xs font-medium text-brand-800">
             Ocena z Twojej perspektywy: {a.perspective.role}
