@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertOctagon, AlertTriangle, Check, ChevronUp, CircleHelp, FilePlus2, Info, Lock, Pencil, RotateCcw, Undo2, X } from 'lucide-react'
+import { highlightChanges } from '../../lib/wordDiff'
 import type { Clause, Finding, FindingAspect, FindingPriority, PartyId, Proposal } from '../../types'
 import { cx, formatRelative } from '../../lib/utils'
 import { Avatar, Badge, Button } from '../ui'
@@ -50,6 +51,7 @@ export function FindingCard({
   collapsible,
   active,
   onActivate,
+  onHover,
   anchored = true,
 }: {
   f: Finding
@@ -62,6 +64,8 @@ export function FindingCard({
   collapsible?: boolean
   active?: boolean
   onActivate?: () => void
+  /** Najechanie myszą – wyróżnienie fragmentu w umowie. */
+  onHover?: (hovered: boolean) => void
   /** Czy cytat został odnaleziony w tekście (zakreślenie). */
   anchored?: boolean
 }) {
@@ -75,6 +79,8 @@ export function FindingCard({
       id={`fc-${f.id}`}
       className={cx('relative scroll-mt-28 overflow-hidden rounded-2xl bg-white ring-1 transition', active ? 'shadow-lg ring-2 ring-ink-800' : 'ring-slate-200', done && !active && 'opacity-75', collapsible && 'cursor-pointer', collapsible && !active && 'hover:ring-slate-300')}
       aria-label={`Komentarz ${number ?? ''}: ${f.title}`}
+      onMouseEnter={onHover ? () => onHover(true) : undefined}
+      onMouseLeave={onHover ? () => onHover(false) : undefined}
       onClick={
         collapsible
           ? (e) => {
@@ -146,7 +152,17 @@ export function FindingCard({
                   <textarea id={`edit-${f.id}`} value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} className="w-full rounded-lg border border-brand-200 bg-white p-2.5 font-serif text-[14px] leading-relaxed focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
                 </>
               ) : (
-                <p className="font-serif text-[14px] leading-relaxed text-ink-900">{f.status === 'edited' ? f.editedText : f.suggestion}</p>
+                <p className="whitespace-pre-line font-serif text-[14px] leading-relaxed text-ink-900">
+                  {highlightChanges(f.clauseId ? f.excerpt : undefined, (f.status === 'edited' ? f.editedText : f.suggestion) ?? '').map((p, i) =>
+                    p.strong ? (
+                      <strong key={i} className="font-semibold text-ink-950 [background:linear-gradient(transparent_62%,rgba(47,184,165,0.28)_62%)]">
+                        {p.text}
+                      </strong>
+                    ) : (
+                      <span key={i}>{p.text}</span>
+                    ),
+                  )}
+                </p>
               )}
             </div>
 

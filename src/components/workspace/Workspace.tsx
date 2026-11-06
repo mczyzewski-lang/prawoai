@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowDown,
@@ -14,6 +14,7 @@ import {
   GitPullRequestArrow,
   History,
   Lock,
+  MoreHorizontal,
   MessageSquare,
   MessageSquareText,
   Pencil,
@@ -91,6 +92,12 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [activeFinding, setActiveFinding] = useState<string | null>(null)
+  /** Komentarz wskazany myszą na marginesie – mocniej wyróżniamy jego fragment w umowie. */
+  const [hoverFinding, setHoverFinding] = useState<string | null>(null)
+  const goToSign = () => {
+    if (panel !== 'dokument' && !window.matchMedia('(min-width: 1024px)').matches) setPanel('dokument')
+    setTimeout(() => document.getElementById('podpisy')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
+  }
   const [signOpen, setSignOpen] = useState(false)
   const [tplOpen, setTplOpen] = useState(false)
   const [editParty, setEditParty] = useState<PartyId | null>(null)
@@ -222,7 +229,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const tabs = useMemo(() => {
     const t: { id: Panel; label: string; hint: string; icon: ReactNode; count?: number }[] = []
     if (hasAnalysis) t.push({ id: 'analiza', label: 'Uwagi', hint: 'Ocena umowy i propozycje zmian', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
-    t.push({ id: 'asystent', label: 'Asystent AI', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
+    t.push({ id: 'asystent', label: 'Asystent', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
     t.push({ id: 'negocjacje', label: 'Negocjacje', hint: 'Propozycje i komentarze stron', icon: <Users className="size-4" aria-hidden />, count: openProposals.length })
     t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
     return t
@@ -328,28 +335,24 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                 {c.shareId ? 'Udostępnij' : 'Zaproś drugą stronę do negocjacji'}
               </Button>
             )}
-            {!isSigned && !c.signatures.some((s) => s.partyId === viewer) && (
-              <Button
-                variant={c.stage === 'agreed' ? 'accent' : 'secondary'}
-                icon={<FileSignature className="size-4" />}
-                onClick={() => {
-                  if (panel !== 'dokument' && !window.matchMedia('(min-width: 1024px)').matches) setPanel('dokument')
-                  setTimeout(() => document.getElementById('podpisy')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
-                }}
-              >
+            {c.stage === 'agreed' && !isSigned && !c.signatures.some((s) => s.partyId === viewer) && (
+              <Button variant="accent" icon={<FileSignature className="size-4" />} onClick={goToSign}>
                 Podpisz
               </Button>
             )}
             {isSigned && (
-              <ButtonLink to={signPath} variant={isSigned ? 'secondary' : 'accent'} icon={<FileSignature className="size-4" />}>
-                {isSigned ? 'Podpisy' : 'Przejdź do podpisu'}
+              <ButtonLink to={signPath} variant="secondary" icon={<FileSignature className="size-4" />}>
+                Podpisy
               </ButtonLink>
             )}
-            <Button variant="secondary" onClick={downloadPdf} loading={pdfBusy} icon={<Download className="size-4" />}>
-              PDF
-            </Button>
-            {isOwner && <Button variant="ghost" aria-label="Zapisz jako mój wzór" title="Zapisz jako mój wzór" onClick={() => setTplOpen(true)} icon={<BookmarkPlus className="size-4" />} />}
-            {isOwner && <Button variant="ghost" aria-label="Usuń umowę" onClick={() => setDeleteOpen(true)} icon={<Trash2 className="size-4" />} />}
+            <MoreMenu
+              items={[
+                ...(!isSigned && c.stage !== 'agreed' && !c.signatures.some((s) => s.partyId === viewer) ? [{ label: 'Podpisz umowę', icon: <FileSignature className="size-4" />, onClick: goToSign }] : []),
+                { label: pdfBusy ? 'Przygotowuję PDF…' : 'Pobierz PDF', icon: <Download className="size-4" />, onClick: downloadPdf },
+                ...(isOwner ? [{ label: 'Zapisz jako mój wzór', icon: <BookmarkPlus className="size-4" />, onClick: () => setTplOpen(true) }] : []),
+                ...(isOwner ? [{ label: 'Usuń umowę', icon: <Trash2 className="size-4" />, onClick: () => setDeleteOpen(true), danger: true }] : []),
+              ]}
+            />
           </div>
         </div>
 
@@ -404,7 +407,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               {selected && <span> · wybrany: {selected.title}</span>}
             </span>
           </p>
-          <div role="tablist" aria-label="Panel umowy" className="flex gap-1 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
+          <div role="tablist" aria-label="Panel umowy" className="flex gap-0.5 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
             {tabs.map((t, i) => {
               const active = desktopPanel === t.id
               return (
@@ -421,10 +424,12 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                     const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]
                     setPanel(n.id)
                   }}
-                  className={cx('flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition', active ? 'bg-ink-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-ink-900')}
+                  aria-label={t.label}
+                  className={cx('flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-[13px] font-medium transition', analysisDesktop ? 'shrink-0' : 'flex-1', active ? 'bg-ink-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-ink-900')}
                 >
                   {t.icon}
-                  {t.label}
+                  {/* Przy wąskim panelu nieaktywne zakładki pokazują tylko ikonę (pełna nazwa w podpowiedzi). */}
+                  <span className={cx(!active && !analysisDesktop && 'hidden xl:inline')}>{t.label}</span>
                   {t.count !== undefined && t.count > 0 && <span className={cx('rounded-full px-1.5 text-xs', active ? 'bg-white/20' : 'bg-brand-100 text-brand-800')}>{t.count}</span>}
                 </button>
               )
@@ -480,6 +485,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   inserts={visibleFindings.filter((x) => !x.f.clauseId && findingClauseId(x) === cl.id)}
                   nextCommented={analysisDesktop ? nextCommented(i) : null}
                   activeFinding={activeFinding}
+                  hoverFinding={hoverFinding}
+                  onHoverFinding={setHoverFinding}
                   onActivateFinding={(id) => activateFinding(id, 'mark')}
                   onActivateCard={(id) => activateFinding(id, 'card')}
                   onEditParty={directEdit ? (id) => setEditParty(id) : undefined}
@@ -635,6 +642,8 @@ function ClauseBlock({
   marks,
   inserts,
   activeFinding,
+  hoverFinding,
+  onHoverFinding,
   onActivateFinding,
   onActivateCard,
   marginMode,
@@ -661,6 +670,8 @@ function ClauseBlock({
   /** Brakujące zapisy proponowane do wstawienia po tym zapisie. */
   inserts: NumberedFinding[]
   activeFinding: string | null
+  hoverFinding?: string | null
+  onHoverFinding?: (id: string | null) => void
   onActivateFinding: (id: string) => void
   onActivateCard: (id: string) => void
   /** Komentarze na marginesie obok zapisu (desktop). */
@@ -676,6 +687,8 @@ function ClauseBlock({
   const pendingAll = [...marks, ...inserts].filter((m) => m.f.status === 'pending')
   const hasKey = pendingAll.some((m) => priorityOf(m.f) === 'najważniejsze')
   const activeHere = [...marks, ...inserts].find((m) => m.f.id === activeFinding)
+  // Komentarz do całego zapisu (bez odnalezionego cytatu) – po najechaniu wyróżniamy cały zapis.
+  const hoverWhole = marks.some((m) => m.f.id === hoverFinding && m.at < 0)
   const pendingInserts = inserts.filter((m) => m.f.status === 'pending')
   const shared = c.stage !== 'draft'
   const isParties = isPartiesClause(c, index)
@@ -683,7 +696,7 @@ function ClauseBlock({
   const [showText, setShowText] = useState(false)
 
   return (
-    <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected ? 'bg-brand-50/60' : 'hover:bg-white/60', marginMode && 'lg:pr-5')} aria-labelledby={`t-${clause.id}`}>
+    <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected || hoverWhole ? 'bg-brand-50/60' : 'hover:bg-white/60', hoverWhole && 'shadow-[inset_3px_0_0_0_rgba(15,23,42,0.5)]', marginMode && 'lg:pr-5')} aria-labelledby={`t-${clause.id}`}>
       {pendingAll.length > 0 && <span className={cx('absolute inset-y-4 left-0 w-1 rounded-r', hasKey ? PRIORITY_META.najważniejsze.bar : PRIORITY_META.kosmetyka.bar)} aria-hidden />}
       <div className={cx(marginMode && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_340px]')}>
         <div className="min-w-0">
@@ -716,7 +729,7 @@ function ClauseBlock({
               {(!generatedParties || showText || pending.length > 0) ? (
                 <div className="mt-4 rounded-xl bg-white/70 p-4 ring-1 ring-slate-200/70">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Brzmienie zapisu</p>
-                  <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} className="text-[14.5px]" />
+                  <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} hoverId={hoverFinding} onActivate={onActivateFinding} className="text-[14.5px]" />
                 </div>
               ) : (
                 <button type="button" onClick={() => setShowText(true)} className="mt-2 text-xs font-medium text-brand-700 hover:underline">
@@ -725,7 +738,7 @@ function ClauseBlock({
               )}
             </div>
           ) : (
-            <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} onActivate={onActivateFinding} className="mt-3" />
+            <ClauseBody text={clause.text} marks={pending} activeId={activeFinding} hoverId={hoverFinding} onActivate={onActivateFinding} className="mt-3" />
           )}
 
           {pendingInserts.map((m) => {
@@ -737,7 +750,7 @@ function ClauseBlock({
                 type="button"
                 onClick={() => onActivateFinding(m.f.id)}
                 aria-pressed={activeFinding === m.f.id}
-                className={cx('mt-4 flex w-full scroll-mt-32 items-start gap-2.5 rounded-xl border-2 border-dashed p-3 text-left transition', activeFinding === m.f.id ? 'border-ink-700 bg-white' : 'border-slate-300 bg-white/50 hover:border-slate-400')}
+                className={cx('mt-4 flex w-full scroll-mt-32 items-start gap-2.5 rounded-xl border-2 border-dashed p-3 text-left transition', activeFinding === m.f.id || hoverFinding === m.f.id ? 'border-ink-700 bg-white' : 'border-slate-300 bg-white/50 hover:border-slate-400')}
               >
                 <span className={cx('grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold', pr.num)}>{m.n}</span>
                 <span className="min-w-0">
@@ -820,6 +833,7 @@ function ClauseBlock({
                 shared={shared}
                 collapsible
                 active={activeFinding === m.f.id}
+                onHover={(h) => onHoverFinding?.(h ? m.f.id : null)}
                 anchored={m.at >= 0}
                 onActivate={() => onActivateCard(m.f.id)}
                 onDecide={(d, t) => onFinding(m.f.id, d, t)}
@@ -1424,5 +1438,48 @@ function PartyEditModal({ party, onClose, onSave }: { party: Contract['parties']
     >
       <PartyFields value={d} onChange={setD} />
     </Modal>
+  )
+}
+
+/** Menu „⋯” z rzadziej używanymi akcjami umowy. */
+function MoreMenu({ items }: { items: { label: string; icon: ReactNode; onClick: () => void; danger?: boolean }[] }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return (
+    <div className="relative" ref={ref}>
+      <Button variant="secondary" aria-label="Więcej akcji" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} icon={<MoreHorizontal className="size-4" />} />
+      {open && (
+        <div role="menu" className="animate-fade-up absolute right-0 top-full z-40 mt-1.5 w-60 rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                it.onClick()
+              }}
+              className={cx('flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm', it.danger ? 'text-red-700 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50')}
+            >
+              {it.icon}
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

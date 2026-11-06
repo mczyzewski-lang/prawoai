@@ -28,12 +28,19 @@ import { analyzeContract, parseClauses } from '../lib/analyzer'
 import { cx, formatRelative, nowIso, sleep, uid, wordCount } from '../lib/utils'
 import { Alert, Button, EmptyState, TextField } from '../components/ui'
 import { FormPicker } from '../components/ProfileModal'
-import { adapt, greet, personaFor, suggestVocative } from '../lib/persona'
+import { adapt, greet, guessForm, personaFor, suggestVocative } from '../lib/persona'
 import { useToast } from '../components/Toast'
+import { getAiStatus } from '../lib/aiAnalysis'
+import { askLegalAssistant, type LegalChatResult } from '../lib/legalAssistant'
 
 const ICONS: Record<string, typeof Scale> = { rozwod: HeartCrack, umowy: Handshake, konsument: ShoppingBag, firma: Briefcase, znaki: Tag, dlugi: Receipt, inne: HelpCircle }
 
 const msg = (role: ChatMessage['role'], text: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: uid('m'), role, text, createdAt: nowIso(), ...extra })
+
+/** Odpowiedź modelu jako wiadomość czatu (z podsumowaniem, gdy rozmowa doszła do wniosków). */
+function aiMessage(res: LegalChatResult): ChatMessage {
+  return msg('assistant', res.reply, { quickReplies: res.quickReplies.length ? res.quickReplies : undefined, ...(res.summary ? { summary: res.summary } : {}) })
+}
 
 function questionMessage(t: Topic, step: number): ChatMessage {
   const q = t.questions[step]
@@ -88,6 +95,16 @@ export default function AssistantPage() {
     upsertConversation({ ...c, step, answers })
     navigate(`/asystent/${id}`)
     setThinking(true)
+    if ((await getAiStatus()).ai) {
+      try {
+        const res = await askLegalAssistant(messages, topic.title, persona)
+        append(id, [aiMessage(res)], { ai: true, done: res.done, ...(res.topicTitle && !freeText ? { title: res.topicTitle } : {}) })
+        setThinking(false)
+        return
+      } catch {
+        // brak odpowiedzi modelu – rozmowa według scenariusza
+      }
+    }
     await sleep(900)
     const baseIntro = freeText && topic.id !== 'inne' ? `Dziękuję. Z opisu wynika, że sprawa może dotyczyć tematu: ${topic.title.toLowerCase()}. ${topic.intro}` : topic.intro
     const intro = greet(baseIntro, persona.addressAs)
@@ -100,8 +117,19 @@ export default function AssistantPage() {
     const t = getTopic(conv.topicId)
     const value = text.trim()
     setInput('')
-    append(conv.id, [msg('user', value)])
+    const userMsg = msg('user', value)
+    append(conv.id, [userMsg])
     setThinking(true)
+    if ((await getAiStatus()).ai) {
+      try {
+        const res = await askLegalAssistant([...conv.messages, userMsg], t.title, persona)
+        append(conv.id, [aiMessage(res)], { ai: true, done: res.done, ...(res.topicTitle && conv.messages.length <= 3 ? { title: res.topicTitle } : {}) })
+        setThinking(false)
+        return
+      } catch {
+        // brak odpowiedzi modelu – rozmowa według scenariusza
+      }
+    }
     await sleep(700 + Math.random() * 600)
 
     if (conv.done) {
@@ -208,8 +236,8 @@ export default function AssistantPage() {
                 <Scale className="size-4" />
               </span>
               <div className="min-w-0">
-                <h1 className="truncate font-semibold text-ink-900">{getTopic(conv.topicId).title}</h1>
-                <p className="text-xs text-slate-500">{conv.done ? 'Podsumowanie gotowe' : `Pytanie ${Math.min(conv.step + 1, getTopic(conv.topicId).questions.length)} z ${getTopic(conv.topicId).questions.length}`}</p>
+                <h1 className="truncate font-semibold text-ink-900">{conv.ai ? conv.title : getTopic(conv.topicId).title}</h1>
+                <p className="text-xs text-slate-500">{conv.done ? 'Podsumowanie gotowe' : conv.ai ? 'Rozmowa z asystentem AI' : `Pytanie ${Math.min(conv.step + 1, getTopic(conv.topicId).questions.length)} z ${getTopic(conv.topicId).questions.length}`}</p>
               </div>
             </div>
 
@@ -290,7 +318,8 @@ function PersonaCard() {
   const { state, updateProfile } = useStore()
   const [addressAs, setAddressAs] = useState(state.profile.addressAs ?? suggestVocative(state.profile.name))
   const [form, setForm] = useState<GrammarForm | undefined>(state.profile.form)
-  if (state.profile.form) return null
+  // Pytamy tylko, gdy formy nie da się odczytać z imienia (można ją zmienić w „Mój profil i dane”).
+  if (state.profile.form || guessForm(state.profile.name)) return null
   return (
     <div className="mt-5 rounded-3xl bg-brand-50/70 p-4 ring-1 ring-brand-100 sm:p-5">
       <p className="font-semibold text-ink-900">Zanim zaczniemy: jak mam się do Ciebie zwracać?</p>

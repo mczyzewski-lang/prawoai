@@ -65,7 +65,7 @@ export default function TemplateDetailPage() {
               </span>
               {approved && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
-                  <BadgeCheck className="size-3.5" aria-hidden /> Potwierdzony przez {t.review!.reviewedBy}
+                  <BadgeCheck className="size-3.5" aria-hidden /> Sprawdzony przez prawników {t.review!.reviewedBy}
                 </span>
               )}
             </div>
@@ -194,7 +194,7 @@ export default function TemplateDetailPage() {
             <p className="font-serif text-2xl font-semibold">Gotowy, żeby zacząć?</p>
             <p className="mt-1 text-sm text-white/70">
               Dla relacji: {t.relations.map((r) => RELATION_LABELS[r]).join(', ')}.{' '}
-              {approved ? `Wzór stworzony i potwierdzony przez ${t.review!.reviewedBy}.` : 'Wzór przykładowy – przed podpisaniem warto, by umowę sprawdził prawnik.'}
+              {approved ? `Wzór sprawdzony przez radców prawnych i adwokatów ${t.review!.reviewedBy}.` : 'Wzór przykładowy – przed podpisaniem warto, by umowę sprawdził prawnik.'}
             </p>
           </div>
           <button

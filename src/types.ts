@@ -207,6 +207,8 @@ export interface Conversation {
   step: number
   answers: Record<string, string>
   done: boolean
+  /** Rozmowę prowadzi model AI (bez sztywnego scenariusza pytań). */
+  ai?: boolean
 }
 
 export interface Profile {

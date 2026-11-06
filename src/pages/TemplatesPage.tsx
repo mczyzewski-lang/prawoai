@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, BadgeCheck, Search, SearchX, Users, X } from 'lucide-react'
+import { ArrowRight, BadgeCheck, Scale, Search, SearchX, Users, X } from 'lucide-react'
 import { TemplateCover } from '../components/TemplateCover'
-import { CATEGORIES, RELATION_LABELS, TEMPLATES, TARGET_LIBRARY_SIZE, getCategory, type CategoryId } from '../data/templates'
+import { CATEGORIES, RELATION_LABELS, TEMPLATES, TARGET_LIBRARY_SIZE, getCategory, LIBRARY_REVIEWED, REVIEW_CLAIM, type CategoryId } from '../data/templates'
 import type { PartyRelation } from '../types'
 import { Badge, Button, EmptyState, PageHeader } from '../components/ui'
 import { cx, plural } from '../lib/utils'
@@ -49,6 +49,20 @@ export default function TemplatesPage() {
         title="Wybierz wzór i stwórz umowę"
         description="Umowy dwustronne, w których warunki ustalacie razem z kontrahentem. Kreator przeprowadzi Cię przez najważniejsze decyzje."
       />
+      {LIBRARY_REVIEWED && (
+        <div className="-mt-2 mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 sm:px-5">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700" aria-hidden>
+            <Scale className="size-5" />
+          </span>
+          <p className="min-w-0 flex-1 text-sm text-slate-700">
+            <span className="font-semibold text-ink-900">{REVIEW_CLAIM}.</span> Każdy wzór przygotowali i zweryfikowali prawnicy praktycy – możesz go dopasować do siebie, a w razie wątpliwości skonsultować umowę z kancelarią.
+          </p>
+          <span className="flex items-center gap-2 text-xs text-slate-500">
+            we współpracy z
+            <PravnaMark />
+          </span>
+        </div>
+      )}
 
       <div className="sticky top-16 z-20 -mx-4 mb-5 space-y-3 bg-sand-50/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:px-0">
         <div className="relative">
@@ -177,5 +191,14 @@ function CatButton({ active, onClick, label, short, count }: { active: boolean; 
       </span>
       <span className={cx('rounded-full px-1.5 text-xs', active ? 'bg-brand-100 text-brand-800' : 'bg-slate-200/70 text-slate-600')}>{count}</span>
     </button>
+  )
+}
+
+/** Dyskretny znak słowny PRAVNA.pl (do podmiany na oficjalne logo). */
+function PravnaMark() {
+  return (
+    <span className="inline-flex items-baseline rounded-md px-1.5 py-0.5 font-serif text-[15px] font-semibold tracking-[0.06em] text-ink-800 ring-1 ring-slate-200" aria-label="PRAVNA.pl">
+      PRAVNA<span className="text-brand-600">.pl</span>
+    </span>
   )
 }

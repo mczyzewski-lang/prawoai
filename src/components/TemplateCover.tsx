@@ -59,7 +59,7 @@ export function TemplateCover({ t, size = 'lg', className }: { t: TemplateDefini
             <div className={cx('mt-2 flex items-center gap-1.5 border-t border-white/15 pt-2 text-white/70', lg ? 'text-[11px]' : 'text-[7px]')}>
               {approved ? (
                 <>
-                  <BadgeCheck className={cx('shrink-0 text-brand-300', lg ? 'size-3.5' : 'size-2.5')} /> Stworzony i potwierdzony przez {t.review!.reviewedBy}
+                  <BadgeCheck className={cx('shrink-0 text-brand-300', lg ? 'size-3.5' : 'size-2.5')} /> Sprawdzony przez prawników {t.review!.reviewedBy}
                 </>
               ) : (
                 'Wzór przykładowy · do weryfikacji'

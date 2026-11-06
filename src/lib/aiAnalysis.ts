@@ -77,16 +77,28 @@ function cleanUrl(u: string): string | undefined {
 }
 
 /** Odnajduje cytat w treści zapisu (tolerancja na różnice w białych znakach i cudzysłowach). */
-function locate(haystack: string, quote: string): string | undefined {
-  const q = quote.trim().replace(/^[„"“]+|[”"“]+$/g, '').replace(/\.{3}|…/g, '').trim()
+export function locate(haystack: string, quote: string): string | undefined {
+  const q = quote
+    .trim()
+    .replace(/^[„"“]+|[”"“]+$/g, '')
+    .replace(/\.{3}|…/g, '')
+    .replace(/^\s*(?:\d{1,2}[.)]|[a-z][.)])\s+/, '') // numer punktu na początku cytatu
+    .trim()
   if (!q) return undefined
   if (haystack.includes(q)) return q
-  const esc = q
-    .split(/\s+/)
-    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/["„”“]/g, '["„”“]'))
-    .join('\\s+')
-  const m = haystack.match(new RegExp(esc))
-  return m?.[0]
+  const word = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/["„”“]/g, '["„”“]').replace(/[-–—]/g, '[-–—]')
+  const find = (words: string[]) => haystack.match(new RegExp(words.map(word).join('\\s+')))?.[0]
+  const words = q.split(/\s+/).filter(Boolean)
+  const full = find(words)
+  if (full) return full
+  // Cytat lekko zmieniony przez model: najdłuższy pasujący początek lub koniec (min. 5 słów).
+  for (let n = words.length - 1; n >= 5; n--) {
+    const head = find(words.slice(0, n))
+    if (head) return head
+    const tail = find(words.slice(words.length - n))
+    if (tail) return tail
+  }
+  return undefined
 }
 
 export interface Perspective {

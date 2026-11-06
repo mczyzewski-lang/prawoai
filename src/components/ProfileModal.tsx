@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { GrammarForm, Profile, SavedParty } from '../types'
 import { useStore } from '../store/AppStore'
-import { FORM_LABEL, suggestVocative } from '../lib/persona'
+import { FORM_LABEL, guessForm, suggestVocative } from '../lib/persona'
 import { Button, Modal, TextField } from './ui'
 import { PartyFields } from './OwnDataModal'
 import { useToast } from './Toast'
@@ -37,7 +37,7 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
 
   useEffect(() => {
     if (!open) return
-    setP({ ...state.profile, addressAs: state.profile.addressAs ?? suggestVocative(state.profile.name) })
+    setP({ ...state.profile, addressAs: state.profile.addressAs ?? suggestVocative(state.profile.name), form: state.profile.form ?? guessForm(state.profile.name) })
     setParty(state.profile.ownParty ?? { ...emptyParty, name: state.profile.name, email: state.profile.email })
     setHasParty(!!state.profile.ownParty)
   }, [open, state.profile])

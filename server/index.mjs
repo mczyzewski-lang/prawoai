@@ -303,6 +303,52 @@ async function callModel(payload, effort, onText) {
   return { model: data.model ?? payload.model, result: JSON.parse(text), usage: u ?? null }
 }
 
+// ——— Asystent prawny (rozmowa o sprawie użytkownika) ———
+const LEGAL_CHAT_PROMPT = `Jesteś asystentem Prawo.ai, który pomaga osobom i małym firmom w Polsce uporządkować sprawę prawną i zaplanować kolejne kroki. Nie jesteś prawnikiem i nie udzielasz porady prawnej – pomagasz zrozumieć sytuację, zebrać fakty, przygotować dokumenty i ocenić, czy warto iść do prawnika.
+
+Jak prowadzisz rozmowę:
+- Odpowiadasz LOGICZNIE na to, co użytkownik właśnie napisał. Jeśli jego odpowiedź zmienia temat (np. wybrał „problemy konsumenckie”, a pisze „mam długi”), dostosuj się do rzeczywistej sprawy – nie trzymaj się sztywno tematu startowego.
+- Zadajesz JEDNO pytanie naraz, najważniejsze dla zrozumienia sprawy (np. przy długach: wobec kogo, jaka kwota, czy są wezwania/nakaz zapłaty/komornik, od kiedy, czy dług jest uznany). Krótko wyjaśnij, po co pytasz, jeśli to nieoczywiste.
+- quickReplies: 2–4 krótkie, realistyczne odpowiedzi na Twoje pytanie (np. „Bank”, „Firma windykacyjna”, „Komornik już działa”). Puste, gdy nie zadajesz pytania.
+- Gdy masz wystarczająco informacji (zwykle po 3–5 pytaniach) albo użytkownik o to prosi – ustaw done = true i przygotuj summary: situation (2–3 zdania), steps (3–6 konkretnych kroków w kolejności), documents (dokumenty do zebrania), lawyer (recommended + reason: czy i dlaczego warto skonsultować się z prawnikiem; zawsze rekomenduj przy terminach sądowych, komorniku, dużych kwotach, sprawach rodzinnych i karnych).
+- Po podsumowaniu odpowiadasz na pytania uzupełniające normalnie (done = true, summary z pustymi polami, jeśli nic nie zmieniasz).
+- Zwracaj uwagę na pilne terminy (np. na sprzeciw od nakazu zapłaty) – ostrzegaj o nich wyraźnie, bez podawania numerów przepisów.
+- Nie powołuj się na numery artykułów ani nazwy ustaw. Pisz po polsku, prosto, życzliwie, krótko (reply najwyżej 4 zdania + pytanie).`
+
+const LEGAL_CHAT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reply', 'quickReplies', 'done', 'topicTitle', 'summary'],
+  properties: {
+    reply: { type: 'string' },
+    quickReplies: { type: 'array', items: { type: 'string' } },
+    done: { type: 'boolean' },
+    topicTitle: { type: 'string' },
+    summary: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['situation', 'steps', 'documents', 'lawyerRecommended', 'lawyerReason'],
+      properties: { situation: { type: 'string' }, steps: { type: 'array', items: { type: 'string' } }, documents: { type: 'array', items: { type: 'string' } }, lawyerRecommended: { type: 'boolean' }, lawyerReason: { type: 'string' } },
+    },
+  },
+}
+
+async function legalChat(body) {
+  const messages = (Array.isArray(body?.messages) ? body.messages : []).slice(-30)
+  if (!messages.length) throw Object.assign(new Error('Brak wiadomości.'), { status: 400, code: 'empty' })
+  const history = messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.text ?? '').slice(0, 6000) }))
+  const topic = String(body?.topic ?? '').slice(0, 120)
+  const payload = {
+    model: INTAKE_MODEL,
+    input: [
+      { role: 'system', content: `${LEGAL_CHAT_PROMPT}\n\n${personaText(body?.persona)}\nTemat wybrany na starcie: ${topic || 'nie wybrano'}. topicTitle = krótki tytuł rzeczywistej sprawy (np. „Długi wobec banku”).` },
+      ...history,
+    ],
+    text: { format: { type: 'json_schema', name: 'legal_chat', strict: true, schema: LEGAL_CHAT_SCHEMA } },
+  }
+  return callModel(payload, process.env.OPENAI_CHAT_EFFORT || 'low')
+}
+
 // ——— Tworzenie umowy z opisu (rozmowa) ———
 const S = { type: 'string' }
 const PARTY_SCHEMA = {
@@ -544,6 +590,15 @@ createServer(async (req, res) => {
         res.end()
       }
       return
+    }
+    if (req.url === '/api/assistant' && req.method === 'POST') {
+      if (!API_KEY) return send(res, 503, { error: 'Asystent wymaga skonfigurowanego modelu AI.', code: 'not_configured' })
+      if (intakeLimited(req)) return send(res, 429, { error: 'Wykorzystano godzinny limit wiadomości. Spróbuj później.', code: 'rate_limited' })
+      const body = await readJson(req, 500_000)
+      const started = Date.now()
+      const out = await legalChat(body)
+      console.log(`[assistant] ${out.model} · done=${out.result.done} · ${((Date.now() - started) / 1000).toFixed(1)} s`)
+      return send(res, 200, out)
     }
     if (req.url === '/api/contract-chat' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Asystent wymaga skonfigurowanego modelu AI.', code: 'not_configured' })

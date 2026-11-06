@@ -208,12 +208,19 @@ const SEEDS: Seed[] = [
  * wtedy na stronie wzoru pojawi się plakietka „Wzór stworzony i potwierdzony przez PRAVNA.pl”.
  */
 export const REVIEWER = 'PRAVNA.pl'
+/**
+ * Cała biblioteka sprawdzona przez radców prawnych i adwokatów PRAVNA.pl (decyzja właściciela serwisu).
+ * Ustaw na false, jeśli którykolwiek wzór nie przeszedł weryfikacji – wtedy plakietki pokażą się
+ * tylko przy wzorach wpisanych do APPROVED_TEMPLATES.
+ */
+export const LIBRARY_REVIEWED = true
+export const REVIEW_CLAIM = 'Sprawdzone przez radców prawnych i adwokatów'
 export const APPROVED_TEMPLATES: Record<string, { reviewedAt: string; version: string }> = {
   // 'zlecenie': { reviewedAt: '2026-11-06', version: '1.0' },
 }
 
 export const TEMPLATES: TemplateDefinition[] = SEEDS.map((s) => {
-  const approved = APPROVED_TEMPLATES[s.id]
+  const approved = APPROVED_TEMPLATES[s.id] ?? (LIBRARY_REVIEWED ? { reviewedAt: '2026-11-06', version: '1.0' } : undefined)
   return {
     ...s,
     fields: s.fields ?? BY_CATEGORY[s.category].fields,

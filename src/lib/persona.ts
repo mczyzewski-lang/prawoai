@@ -2,8 +2,24 @@ import type { GrammarForm, Profile } from '../types'
 
 /**
  * Personalizacja komunikatów: zwracanie się po imieniu i formy gramatyczne.
- * Formę wybiera użytkownik (profil) – nie zgadujemy jej z imienia.
+ * Formę można ustawić w profilu; domyślnie odczytujemy ją z typowo polskiego imienia,
+ * a pytamy tylko, gdy imię jest niejednoznaczne.
  */
+
+/** Męskie imiona zakończone na „-a” (wyjątki od reguły). */
+const MALE_A = /^(kuba|barnaba|bonawentura|jarema|kosma|boryna|saba|juda|zawisza|sasza|misza|grisza|nikita|luca|andrea)$/i
+/** Żeńskie imiona bez końcówki „-a”. */
+const FEMALE_OTHER = /^(beatrycze|nicole|noemi|carmen|ingrid|miriam|ruth|abigail|dolores|rachel|karen|mercedes|agnes|alice|michelle|chloe|zoe|inez)$/i
+
+/** Forma gramatyczna z imienia (undefined, gdy nie da się ocenić). */
+export function guessForm(fullName: string): GrammarForm | undefined {
+  const first = fullName.trim().split(/\s+/)[0]?.replace(/[^\p{L}]/gu, '') ?? ''
+  if (first.length < 2) return undefined
+  if (FEMALE_OTHER.test(first)) return 'f'
+  if (/a$/i.test(first)) return MALE_A.test(first) ? 'm' : 'f'
+  if (/^\p{Lu}\p{Ll}+$/u.test(first)) return 'm'
+  return undefined
+}
 
 /** Propozycja wołacza do edycji przez użytkownika (heurystyka końcówek). */
 export function suggestVocative(fullName: string): string {
@@ -38,7 +54,8 @@ export function adapt(text: string, form: GrammarForm | undefined): string {
 }
 
 export function personaFor(p: Profile): { addressAs: string; form: GrammarForm } {
-  return { addressAs: p.addressAs?.trim() || '', form: p.form ?? 'n' }
+  const addressAs = p.addressAs === undefined ? suggestVocative(p.name) : p.addressAs.trim()
+  return { addressAs, form: p.form ?? guessForm(p.name) ?? 'n' }
 }
 
 /** „Katarzyno, rozumiem…” – dopisuje zwrot do początku wiadomości. */

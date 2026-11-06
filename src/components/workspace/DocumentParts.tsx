@@ -3,7 +3,7 @@ import type { Contract, Party, PartyId } from '../../types'
 import { cx, formatDate, formatDateTime } from '../../lib/utils'
 import { documentKind, partyRows, splitClauseLines, stageLabel } from '../../lib/documentFormat'
 import { BrandSymbol, Wordmark } from '../BrandSymbol'
-import { HighlightedText, type NumberedFinding } from './Annotations'
+import { HighlightedText, segmentsFor, type NumberedFinding } from './Annotations'
 
 /** Mały znak Prawo.ai do nagłówka dokumentu. */
 export function BrandMark({ className }: { className?: string }) {
@@ -120,16 +120,22 @@ function Placeholders({ text }: { text: string }) {
 }
 
 /** Treść zapisu z ustępami („1.”, „a)”) z wcięciem wiszącym i zakreśleniami komentarzy. */
-export function ClauseBody({ text, marks = [], activeId = null, onActivate = () => {}, className }: { text: string; marks?: NumberedFinding[]; activeId?: string | null; onActivate?: (id: string) => void; className?: string }) {
+export function ClauseBody({ text, marks = [], activeId = null, hoverId = null, onActivate = () => {}, className }: { text: string; marks?: NumberedFinding[]; activeId?: string | null; hoverId?: string | null; onActivate?: (id: string) => void; className?: string }) {
   const lines = splitClauseLines(text)
+  const anchored = new Set<string>()
   return (
     <div className={cx('space-y-2 font-serif text-[15.5px] leading-[1.75] text-slate-800', className)}>
       {lines.map((l, i) => {
         if (l.kind === 'blank') return null
-        const lineMarks = marks
-          .filter((m) => m.at >= l.offset && m.f.excerpt && m.at + m.f.excerpt.length <= l.offset + l.length)
-          .map((m) => ({ ...m, at: m.at - l.offset }))
-        const body = lineMarks.length ? <HighlightedText text={l.content} marks={lineMarks} activeId={activeId} onActivate={onActivate} /> : <Placeholders text={l.content} />
+        // Cytat może obejmować kilka linii lub zaczynać się od numeru punktu – zakreślamy część w tej linii.
+        const segs = segmentsFor(marks, l.offset, l.offset + l.length)
+        for (const sg of segs) {
+          if (!anchored.has(sg.m.f.id)) {
+            sg.first = true
+            anchored.add(sg.m.f.id)
+          }
+        }
+        const body = segs.length ? <HighlightedText text={l.content} segments={segs} activeId={activeId} hoverId={hoverId} onActivate={onActivate} /> : <Placeholders text={l.content} />
         if (l.kind === 'para') return <p key={i}>{body}</p>
         return (
           <div key={i} className={cx('grid gap-x-2', l.kind === 'num' ? 'grid-cols-[1.9rem_1fr]' : 'ml-[1.9rem] grid-cols-[1.4rem_1fr]')}>
