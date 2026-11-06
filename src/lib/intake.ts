@@ -262,7 +262,7 @@ export function buildContractFromMyTemplate(mt: MyTemplate, s: IntakeState, auth
     return { ...cl, id: uid('cl'), text }
   })
   const at = nowIso()
-  const title = s.title.trim() || `${mt.name} – ${newOther.name}`
+  const title = s.title.trim() || (newOther.name.trim() ? `${mt.name} – ${newOther.name}` : mt.name)
   return {
     id: uid('k'),
     title,

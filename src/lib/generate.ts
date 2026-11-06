@@ -13,6 +13,7 @@ import {
 } from './intake'
 import { applyAssistantResult, askContractAssistant } from './contractAssistant'
 import { getTemplate } from '../data/templates'
+import { parseFreeParty } from './partyText'
 import { nowIso, uid } from './utils'
 
 /**
@@ -49,13 +50,14 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
 
   // Bez modelu AI: umowa ze wzoru z tym, co da się odczytać z opisu, i asystent w trybie podstawowym.
   const toIntake = (d: SavedParty): IntakeParty => ({ kind: d.kind, name: d.name, address: d.address ?? '', idNumber: d.idNumber ?? '', email: d.email ?? '', representative: d.representative ?? '' })
-  const counterparty = (input.mentioned ?? []).find((m) => m.name.trim().toLowerCase() !== input.ownParty?.name.trim().toLowerCase())
+  const mentionedOther = (input.mentioned ?? []).find((m) => m.name.trim().toLowerCase() !== input.ownParty?.name.trim().toLowerCase())
 
   // Bez modelu AI, z Twojego wzoru: podmieniamy dane drugiej strony na wskazane przez „@”.
   if (!input.ai && input.myTemplate) {
     onStage('drafting')
     const mt = input.myTemplate
     const state = stateFromMyTemplate(mt)
+    const counterparty = mentionedOther ?? parseFreeParty(prompt) ?? undefined
     if (counterparty) {
       const other = toIntake(counterparty)
       if (mt.ownerPartyId === 'A') state.partyB = other
@@ -69,7 +71,7 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
         id: uid('m'),
         role: 'assistant',
         text: counterparty
-          ? `Przygotowałem umowę z Twojego wzoru „${mt.name}” i wpisałem dane: ${counterparty.name}. Sprawdź kolumny stron i zapisy z miejscami do uzupełnienia.`
+          ? `Przygotowałem umowę z Twojego wzoru „${mt.name}” i wpisałem dane drugiej strony: ${counterparty.name}${counterparty.address ? `, ${counterparty.address}` : ''}. Sprawdź kolumny stron i miejsca do uzupełnienia.`
           : `Przygotowałem umowę z Twojego wzoru „${mt.name}”. Uzupełnij dane drugiej strony przyciskiem „Edytuj” przy kolumnach (albo wskaż ją przez „@” w wiadomości).`,
         createdAt: nowIso(),
       },
@@ -90,7 +92,7 @@ export async function generateFromPrompt(input: GenerateInput, onStage: (s: Gene
     const wishes = prompt.replace(/^Chcę utworzyć:[^.]*\.\s*/i, '').replace(/^Zależy mi na:\s*/i, '').trim()
     if (wishes) state.answers.extra = `Ustalenia, na których zależy Stronom: ${wishes.replace(/[.\s]+$/, '')}.`
     if (input.ownParty) state.partyA = toIntake(input.ownParty)
-    if (counterparty) state.partyB = toIntake(counterparty)
+    if (mentionedOther) state.partyB = toIntake(mentionedOther)
     let c = buildContractFromIntake(state, input.authorName)
     const missing = [!c.parties[0].name && `dane strony „${t.roles[0]}”`, !c.parties[1].name && `dane strony „${t.roles[1]}”`, `przedmiot umowy (§ 2)`, !amount && t.fields.includes('amount') && 'kwotę'].filter(Boolean)
     const msgs: ChatMessage[] = [

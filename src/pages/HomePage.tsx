@@ -77,8 +77,7 @@ export default function HomePage() {
                 boxClassName="rounded-xl border-0 px-3 py-2.5 text-[16px] leading-6"
                 inputClassName="text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
-              <div className="flex items-center justify-end gap-2 px-1 pb-1">
-                <span className="mr-auto hidden text-xs text-slate-400 sm:inline">@ – osoba z konta</span>
+              <div className="flex min-w-0 items-center justify-end gap-2 px-1 pb-1">
                 <MyTemplatePicker templates={myTemplates} value={myTpl} onChange={(id) => {
                   setMyTpl(id)
                   document.getElementById('home-prompt')?.focus()
@@ -361,13 +360,13 @@ function MyTemplatePicker({ templates, value, onChange }: { templates: MyTemplat
     }
   }, [open])
   return (
-    <div className="relative min-w-0" ref={ref}>
+    <div className="relative min-w-0 max-w-[13rem] shrink" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`inline-flex h-10 min-w-0 max-w-[13rem] items-center gap-1.5 rounded-xl px-3 text-sm font-medium ring-1 ring-inset transition ${selected ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'text-slate-700 ring-slate-300 hover:bg-slate-50'}`}
+        className={`inline-flex h-10 w-full min-w-0 max-w-full items-center gap-1.5 rounded-xl px-3 text-sm font-medium ring-1 ring-inset transition ${selected ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'text-slate-700 ring-slate-300 hover:bg-slate-50'}`}
       >
         <Bookmark className="size-4 shrink-0" aria-hidden />
         <span className="truncate">{selected ? selected.name : 'Mój wzór'}</span>

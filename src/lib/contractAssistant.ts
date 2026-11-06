@@ -117,7 +117,15 @@ export function applyAssistantResult(c: Contract, res: AssistantResult, viewer: 
     if (clauses[0] && before[0] && clauses[0].text !== before[0].text) touched.add(clauses[0].id)
     const notes = [...edits.map((e) => e.summary).filter(Boolean), ...(partyUpdates.length ? ['Uzupełniono dane stron'] : [])]
     const undo = { clauses: c.clauses.map((x) => ({ ...x })), parties: c.parties.map((p) => ({ ...p })) as [Party, Party], title: c.title }
-    let next: Contract = { ...c, clauses, parties, title: newTitle || c.title }
+    // Tytuł „Wzór – Stara nazwa” podąża za nową nazwą drugiej strony.
+    let title = newTitle || c.title
+    if (!newTitle) {
+      for (const p of c.parties) {
+        const np = parties.find((x) => x.id === p.id)
+        if (p.name && np?.name && np.name !== p.name && title.endsWith(` – ${p.name}`)) title = title.slice(0, -p.name.length) + np.name
+      }
+    }
+    let next: Contract = { ...c, clauses, parties, title }
     next = snapshot(next, `${actorName} (z asystentem)`, `Asystent: ${notes.join('; ') || 'zmiany w umowie'}`)
     next = { ...next, activity: [...next.activity, { id: uid('a'), at: nowIso(), text: `${actorName} wprowadził(a) zmiany z asystentem: ${notes.join('; ')}`, partyId: viewer }] }
     const changes = clauses.map((cl, i) => ({ cl, i })).filter(({ cl }) => touched.has(cl.id)).map(({ cl, i }) => ({ clauseId: cl.id, label: `§ ${i + 1} ${cl.title}` }))

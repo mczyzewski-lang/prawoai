@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowUp, AtSign, Bot, EyeOff, FilePen, Lock, PencilLine, Undo2 } from 'lucide-react'
 import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
 import { PRIVATE_PROMPTS, privateAnswer } from '../../lib/privateAssistant'
+import { looksLikePartyData, parseFreeParty } from '../../lib/partyText'
 import { askContractAssistant, AssistantError, type AssistantResult, type Mention } from '../../lib/contractAssistant'
 import { getAiStatus } from '../../lib/aiAnalysis'
 import { cx, nowIso, sleep, uid } from '../../lib/utils'
@@ -56,7 +57,7 @@ function mentionFillResult(c: Contract, viewer: PartyId, text: string, used: Men
   const me = c.parties.find((p) => p.id === viewer)!
   const other = c.parties.find((p) => p.id !== viewer)!
   const t = text.toLowerCase()
-  const wantsOther = /drug(a|iej|ą) stron|kontrahent/.test(t) || t.includes(other.role.toLowerCase().slice(0, 6))
+  const wantsOther = /drug(a|iej|ą) stron|kontrahent|klient/.test(t) || t.includes(other.role.toLowerCase().slice(0, 6))
   const wantsMe = /\b(moj|moje|mnie|ja)\b/.test(t) || t.includes(me.role.toLowerCase().slice(0, 6))
   const order: (typeof me)[] = wantsOther && !wantsMe ? [other, me] : wantsMe ? [me, other] : !me.name ? [me, other] : !other.name ? [other, me] : [me, other]
   const updates = used.slice(0, 2).map((m, i) => ({ partyId: order[i].id, ...m.data, kind: m.data.kind }))
@@ -187,6 +188,11 @@ export function PrivateAssistant({
     } else if (used.length) {
       await sleep(400)
       onAssistantResult(mentionFillResult(contract, viewer, question, used))
+    } else if (looksLikePartyData(question) && parseFreeParty(question)) {
+      // Bez modelu AI: dane wpisane w wiadomości („wprowadź dane klienta: Anna Kowalczyk, ul. …”)
+      const data = parseFreeParty(question)!
+      await sleep(400)
+      onAssistantResult(mentionFillResult(contract, viewer, question, [{ label: data.name, data }]))
     } else if (/\b(zmie|dodaj|usu|popraw|wpisz|uzupełn|przeredaguj)/i.test(question)) {
       await sleep(400)
       onAppend([
