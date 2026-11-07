@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { BellRing, CalendarClock, CalendarPlus, Check, FileCheck2, Hourglass, Loader2, Pencil, Plus, Receipt, RefreshCcw, ShieldCheck, Sparkles, Trash2, Truck, XCircle } from 'lucide-react'
 import type { Contract, Deadline, DeadlineKind } from '../../types'
 import { Button, EmptyState, Modal, TextArea, TextField } from '../ui'
@@ -35,7 +36,7 @@ const URGENCY_CLS = {
   undated: 'bg-slate-100 text-slate-600',
 }
 
-export function DeadlineRow({ d, contractTitle, onToggle, onEdit, onDelete, onOpenClause, href }: { d: Deadline; contractTitle?: string; onToggle?: () => void; onEdit?: () => void; onDelete?: () => void; onOpenClause?: () => void; href?: string }) {
+export function DeadlineRow({ d, contractTitle, onToggle, onEdit, onDelete, onOpenClause, href, collectHref }: { d: Deadline; contractTitle?: string; onToggle?: () => void; onEdit?: () => void; onDelete?: () => void; onOpenClause?: () => void; href?: string; collectHref?: string }) {
   const Icon = KIND_ICON[d.kind]
   const u = urgency(d)
   return (
@@ -51,9 +52,9 @@ export function DeadlineRow({ d, contractTitle, onToggle, onEdit, onDelete, onOp
       <div className="min-w-0 flex-1">
         <p className={cx('font-medium text-ink-900', d.done && 'line-through')}>
           {href ? (
-            <a href={href} className="hover:underline">
+            <Link to={href} className="hover:underline">
               {d.title}
-            </a>
+            </Link>
           ) : (
             d.title
           )}
@@ -78,6 +79,11 @@ export function DeadlineRow({ d, contractTitle, onToggle, onEdit, onDelete, onOp
               </button>
             )}
           </p>
+        )}
+        {collectHref && d.kind === 'płatność' && !d.done && d.date && daysUntil(d.date) < 0 && (
+          <Link to={collectHref} className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-100">
+            Nie zapłacono? Rozpocznij windykację →
+          </Link>
         )}
       </div>
       {(onEdit || onDelete) && (
@@ -210,6 +216,7 @@ export function DeadlinesPanel({ c, onChange, onOpenClause }: { c: Contract; onC
               onEdit={() => setEdit(d)}
               onDelete={() => onChange((old) => (old ?? []).filter((x) => x.id !== d.id))}
               onOpenClause={d.clauseId ? () => onOpenClause(d.clauseId!) : undefined}
+              collectHref={`/windykacja/nowa?umowa=${c.id}&termin=${d.id}`}
             />
           ))}
         </ul>

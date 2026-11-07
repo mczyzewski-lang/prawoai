@@ -318,3 +318,39 @@ export interface DataCollection {
   columns: DataColumn[]
   rows: DataRow[]
 }
+
+/** Sprawa windykacyjna (należność od dłużnika). */
+export type DebtStatus = 'nowa' | 'przypomnienie' | 'wezwanie' | 'ugoda' | 'spłacona' | 'u prawnika'
+
+export interface DebtInvoice {
+  id: string
+  number: string
+  /** Kwota brutto do zapłaty (PLN). */
+  amount: number
+  /** Termin płatności RRRR-MM-DD. */
+  dueDate: string
+}
+
+export interface DebtEvent {
+  id: string
+  at: string
+  kind: 'utworzono' | 'przypomnienie' | 'wezwanie' | 'wpłata' | 'status' | 'notatka'
+  text: string
+}
+
+export interface DebtCase {
+  id: string
+  createdAt: string
+  updatedAt: string
+  contractId?: string
+  debtor: SavedParty
+  invoices: DebtInvoice[]
+  /** Transakcja handlowa między przedsiębiorcami (odsetki handlowe, rekompensata). */
+  b2b: boolean
+  /** Dłużnik kwestionuje należność. */
+  disputed: boolean
+  status: DebtStatus
+  /** Numer rachunku do wpłaty. */
+  account: string
+  events: DebtEvent[]
+}

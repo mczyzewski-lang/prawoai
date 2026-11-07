@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BellRing, BookUser, CalendarClock, FileSearch, FolderOpen, Layers, X, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
+import { Banknote, BellRing, BookUser, CalendarClock, FileSearch, FolderOpen, Layers, X, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
 import { ProfileModal } from './ProfileModal'
 import { Wordmark } from './BrandSymbol'
 import { useStore } from '../store/AppStore'
@@ -24,6 +24,7 @@ const NAV = [
 /** Tylko w nawigacji desktopowej (na telefonie – w menu konta). */
 const NAV_EXTRA = [
   { to: '/terminy', label: 'Terminy', icon: CalendarClock },
+  { to: '/windykacja', label: 'Windykacja', icon: Banknote },
   { to: '/inne', label: 'Inne', icon: Layers },
 ]
 
@@ -83,6 +84,9 @@ function ProfileMenu() {
           </Link>
           <Link role="menuitem" to="/terminy" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 md:hidden">
             <CalendarClock className="size-4" aria-hidden /> Terminy z umów
+          </Link>
+          <Link role="menuitem" to="/windykacja" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 md:hidden">
+            <Banknote className="size-4" aria-hidden /> Windykacja
           </Link>
           <Link role="menuitem" to="/inne" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 md:hidden">
             <Layers className="size-4" aria-hidden /> Inne – założenia i backlog

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Contract, Conversation, DataCollection, GuestAccount, MyTemplate, Profile } from '../types'
+import type { Contract, Conversation, DataCollection, DebtCase, GuestAccount, MyTemplate, Profile } from '../types'
 import { defaultDataBook } from '../lib/dataBook'
 import { DEFAULT_PROFILE, seedContracts, seedConversations } from './seed'
 
@@ -17,10 +17,12 @@ export interface AppState {
   myTemplates: MyTemplate[]
   /** „Adresy i dane” – osoby, sprzęt i inne dane wstawiane do umów przez „@”. */
   dataBook: DataCollection[]
+  /** Sprawy windykacyjne. */
+  debtCases: DebtCase[]
 }
 
 function freshState(): AppState {
-  return { schema: SCHEMA_VERSION, profile: DEFAULT_PROFILE, contracts: seedContracts(), conversations: seedConversations(), guestAccounts: {}, myTemplates: [], dataBook: defaultDataBook() }
+  return { schema: SCHEMA_VERSION, profile: DEFAULT_PROFILE, contracts: seedContracts(), conversations: seedConversations(), guestAccounts: {}, myTemplates: [], dataBook: defaultDataBook(), debtCases: [] }
 }
 
 type LoadResult = { state: AppState; error: string | null }
@@ -57,6 +59,8 @@ interface Store {
   upsertMyTemplate: (t: MyTemplate) => void
   deleteMyTemplate: (id: string) => void
   setDataBook: (fn: (d: DataCollection[]) => DataCollection[]) => void
+  upsertDebtCase: (c: DebtCase) => void
+  deleteDebtCase: (id: string) => void
   resetDemo: () => void
 }
 
@@ -131,6 +135,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         }),
       updateProfile: (profile) => setState((s) => ({ ...s, profile })),
       upsertMyTemplate: (t) => setState((s) => ({ ...s, myTemplates: [t, ...(s.myTemplates ?? []).filter((x) => x.id !== t.id)] })),
+      upsertDebtCase: (dc) => setState((s) => ({ ...s, debtCases: [dc, ...(s.debtCases ?? []).filter((x) => x.id !== dc.id)] })),
+      deleteDebtCase: (id) => setState((s) => ({ ...s, debtCases: (s.debtCases ?? []).filter((x) => x.id !== id) })),
       setDataBook: (fn) => setState((s) => ({ ...s, dataBook: fn(s.dataBook ?? defaultDataBook()) })),
       deleteMyTemplate: (id) => setState((s) => ({ ...s, myTemplates: (s.myTemplates ?? []).filter((x) => x.id !== id) })),
       resetDemo: () => {

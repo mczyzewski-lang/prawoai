@@ -139,7 +139,7 @@ export default function DeadlinesPage() {
                   </h2>
                   <ul className="divide-y divide-slate-100">
                     {g.items.map((r) => (
-                      <DeadlineRow key={r.d.id} d={r.d} contractTitle={r.c.title} href={`/umowy/${r.c.id}?panel=terminy`} onToggle={() => toggle(r)} />
+                      <DeadlineRow key={r.d.id} d={r.d} contractTitle={r.c.title} href={`/umowy/${r.c.id}?panel=terminy`} onToggle={() => toggle(r)} collectHref={`/windykacja/nowa?umowa=${r.c.id}&termin=${r.d.id}`} />
                     ))}
                   </ul>
                 </section>
