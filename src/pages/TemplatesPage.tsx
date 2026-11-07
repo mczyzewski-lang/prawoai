@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, BadgeCheck, Scale, Search, SearchX, Users, X } from 'lucide-react'
+import { ArrowRight, Scale, Search, SearchX, Users, X } from 'lucide-react'
 import { TemplateCover } from '../components/TemplateCover'
 import { CATEGORIES, RELATION_LABELS, TEMPLATES, TARGET_LIBRARY_SIZE, getCategory, LIBRARY_REVIEWED, REVIEW_CLAIM, type CategoryId } from '../data/templates'
 import type { PartyRelation } from '../types'
@@ -141,14 +141,8 @@ export default function TemplatesPage() {
                 <li key={t.id}>
                   <Link to={`/wzory/${t.id}`} className="group flex h-full flex-col overflow-hidden rounded-3xl bg-white ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:shadow-xl hover:ring-brand-200">
                     <div className="relative bg-gradient-to-b from-sand-100 to-sand-50 px-6 pb-5 pt-6">
-                      <div className="absolute left-3 top-3 flex gap-1">
-                        {t.popular && <Badge tone="brand">Popularny</Badge>}
-                        {t.status === 'zatwierdzony' && t.review && (
-                          <Badge tone="brand">
-                            <BadgeCheck className="size-3" aria-hidden /> {t.review.reviewedBy}
-                          </Badge>
-                        )}
-                      </div>
+                      {/* Tagi nad okładką (nie nachodzą na nią); weryfikację PRAVNA.pl pokazuje sama okładka. */}
+                      <div className="relative z-10 -mt-2 mb-2 flex h-6 gap-1">{t.popular && <Badge tone="brand">Popularny</Badge>}</div>
                       <TemplateCover t={t} size="sm" />
                     </div>
                     <div className="flex flex-1 flex-col p-4">
