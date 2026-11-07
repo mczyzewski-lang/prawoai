@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { MyTemplate } from '../types'
 import { useNavigate } from 'react-router-dom'
 import { Check, Loader2 } from 'lucide-react'
 import { useStore } from '../store/AppStore'
@@ -25,7 +26,7 @@ export function useGenerate() {
   /** Osoby z konta do wskazania przez „@”. */
   const contacts = useMemo(() => collectContacts(state.profile.ownParty, state.contracts, state.dataBook), [state.profile.ownParty, state.contracts, state.dataBook])
 
-  const generate = async (prompt: string, opts: { templateHint?: string; myTemplateId?: string | null } = {}) => {
+  const generate = async (prompt: string, opts: { templateHint?: string; myTemplateId?: string | null; myTemplate?: MyTemplate } = {}) => {
     if (stage) return
     const ai = (await getAiStatus()).ai
     if (ai) setStage('reading')
@@ -40,7 +41,7 @@ export function useGenerate() {
           authorName: state.profile.name,
           ownParty: state.profile.ownParty,
           persona: personaFor(state.profile),
-          myTemplate: (state.myTemplates ?? []).find((t) => t.id === opts.myTemplateId),
+          myTemplate: opts.myTemplate ?? (state.myTemplates ?? []).find((t) => t.id === opts.myTemplateId),
           templateHint: opts.templateHint,
         },
         setStage,

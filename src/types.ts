@@ -61,6 +61,21 @@ export interface SharedComment {
   authorName: string
   text: string
   createdAt: string
+  /** Komentarz wewnętrzny (Twój zespół / wspólnik) – niewidoczny dla drugiej strony umowy. */
+  internal?: boolean
+}
+
+export type CollaboratorRole = 'komentarze' | 'podgląd'
+
+/** Osoba z Twojej strony (np. wspólnik), której udostępniasz umowę do przeglądu przed podpisem. */
+export interface Collaborator {
+  id: string
+  token: string
+  name: string
+  email: string
+  role: CollaboratorRole
+  invitedAt: string
+  approvedAt?: string
 }
 
 export interface Version {
@@ -176,6 +191,8 @@ export interface ActivityItem {
   at: string
   text: string
   partyId?: PartyId
+  /** Wpis wewnętrzny (zespół właściciela) – niewidoczny dla drugiej strony. */
+  internal?: boolean
 }
 
 export interface Contract {
@@ -210,6 +227,8 @@ export interface Contract {
   deadlines?: Deadline[]
   /** Zamówienie weryfikacji umowy przez prawnika. */
   lawyerReview?: LawyerReview
+  /** Osoby z Twojej strony z dostępem do umowy (np. wspólnik). */
+  collaborators?: Collaborator[]
 }
 
 export type DeadlineKind = 'płatność' | 'wypowiedzenie' | 'przedłużenie' | 'realizacja' | 'odbiór' | 'gwarancja' | 'inne'

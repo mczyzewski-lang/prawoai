@@ -26,7 +26,7 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react'
-import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
+import type { ChatMessage, Clause, Contract, PartyId, Collaborator } from '../../types'
 import { useStore } from '../../store/AppStore'
 import { acceptCurrentVersion, addComment, addSignature, commentProposal, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
@@ -41,6 +41,7 @@ import { partyLine } from '../../lib/contractGenerator'
 import type { SavedParty } from '../../types'
 import { useToast } from '../Toast'
 import { SendToSignDialog, ShareDialog } from '../ShareDialog'
+import { CollaboratorBar, TeamAvatars, TeamShareDialog } from '../TeamShare'
 import { DeadlinesPanel } from '../deadlines/DeadlineParts'
 import { LawyerReviewCard, LawyerReviewDialog, LawyerReviewStatus } from '../LawyerReview'
 import { daysUntil } from '../../lib/deadlines'
@@ -65,15 +66,17 @@ export interface WorkspaceProps {
   /** Prośba o założenie konta; `then` wykona się po rejestracji. */
   requireAccount: (reason: string, then?: () => void) => void
   signPath: string
+  /** Osoba z zespołu właściciela (np. wspólnik) – przegląd i komentarze wewnętrzne przed podpisem. */
+  collaborator?: Collaborator
 }
 
-export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount, requireAccount, signPath }: WorkspaceProps) {
+export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount, requireAccount, signPath, collaborator }: WorkspaceProps) {
   const { state: appState, updateContract, deleteContract, upsertMyTemplate, updateProfile } = useStore()
   const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const hasAnalysis = isOwner && !!c.analysis
-  const defaultPanel: Exclude<Panel, 'dokument'> = hasAnalysis && c.stage === 'draft' ? 'analiza' : 'asystent'
+  const defaultPanel: Exclude<Panel, 'dokument'> = collaborator ? 'historia' : hasAnalysis && c.stage === 'draft' ? 'analiza' : 'asystent'
   // „negocjacje” – stare linki: sugestie są teraz przy zapisach w dokumencie
   const rawPanel = params.get('panel')
   const panelParam = (rawPanel === 'negocjacje' ? 'dokument' : rawPanel) as Panel | null
@@ -97,6 +100,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [proposalFor, setProposalFor] = useState<{ clause: Clause; text?: string } | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [sendSignOpen, setSendSignOpen] = useState(false)
+  const [teamOpen, setTeamOpen] = useState(false)
   const [lawyerOpen, setLawyerOpen] = useState(false)
   const otherSigned = c.signatures.some((sg) => sg.partyId !== c.ownerPartyId)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -218,7 +222,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const commentOn = (proposalId: string, text: string) =>
     guard('Aby komentować sugestie, załóż bezpłatne konto.', () => updateContract(c.id, (x) => commentProposal(x, proposalId, { partyId: viewer, authorName: viewerName, text })))
   const commentClause = (clauseId: string, text: string) =>
-    guard('Aby komentować, załóż bezpłatne konto.', () => updateContract(c.id, (x) => addComment(x, { clauseId, text, partyId: viewer, authorName: viewerName })))
+    guard('Aby komentować, załóż bezpłatne konto.', () => updateContract(c.id, (x) => addComment(x, { clauseId, text, partyId: viewer, authorName: viewerName, internal: !!collaborator || x.stage === 'draft' })))
   /** Pierwsza strona (właściciel umowy) decyduje o ostatecznym brzmieniu sugestii. */
   const decider = viewer === c.ownerPartyId
   const deciderName = c.parties.find((p) => p.id === c.ownerPartyId)?.name || 'pierwsza strona'
@@ -244,12 +248,16 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const upcomingDeadlines = (c.deadlines ?? []).filter((d) => !d.done && d.date && daysUntil(d.date) <= 7).length
   const tabs = useMemo(() => {
     const t: { id: Panel; label: string; hint: string; icon: ReactNode; count?: number }[] = []
+    if (collaborator) {
+      t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
+      return t
+    }
     if (hasAnalysis) t.push({ id: 'analiza', label: 'Uwagi', hint: 'Ocena umowy i propozycje zmian', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
     t.push({ id: 'asystent', label: 'Asystent', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
     if (isOwner) t.push({ id: 'terminy', label: 'Terminy', hint: 'Kalendarz terminów i przypomnienia', icon: <CalendarClock className="size-4" aria-hidden />, count: upcomingDeadlines })
     t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
     return t
-  }, [hasAnalysis, pendingFindings, openProposals.length, isOwner, upcomingDeadlines])
+  }, [hasAnalysis, pendingFindings, openProposals.length, isOwner, upcomingDeadlines, collaborator])
 
   const stages = [
     { id: 'draft', label: 'Projekt' },
@@ -303,7 +311,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
         />
       )
     if (p === 'terminy' && isOwner) return <DeadlinesPanel c={c} onChange={(fn) => updateContract(c.id, (x) => ({ ...x, deadlines: fn(x.deadlines) }))} onOpenClause={(id) => selectClause(id)} />
-    return <HistoryPanel c={c} />
+    // Druga strona nie widzi wpisów wewnętrznych (zespół właściciela, komentarze wewnętrzne).
+    return <HistoryPanel c={viewer === c.ownerPartyId ? c : { ...c, activity: c.activity.filter((a) => !a.internal) }} />
   }
 
   return (
@@ -326,7 +335,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink-900 sm:text-[28px]">{c.title}</h1>
             <p className="mt-1 text-sm text-slate-600">
-              <span className="font-medium text-ink-900">Ty</span> jako {me.role}{me.name ? ` (${me.name})` : ''} · druga strona: <span className="font-medium text-ink-900">{other.name || 'dane do uzupełnienia'}</span> ({other.role})
+              <span className="font-medium text-ink-900">{collaborator ? 'Strona' : 'Ty'}</span> {collaborator ? '' : 'jako '}{me.role}{me.name ? ` (${me.name})` : ''} · druga strona: <span className="font-medium text-ink-900">{other.name || 'dane do uzupełnienia'}</span> ({other.role})
             </p>
           </div>
           <div className="flex flex-wrap gap-2 lg:max-w-[52%] lg:justify-end">
@@ -335,12 +344,15 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                 Wyślij do podpisu
               </Button>
             )}
-            {isOwner && !isSigned && (
-              <Button variant="secondary" onClick={() => setShareOpen(true)} icon={c.shareId ? <Share2 className="size-4" /> : <Send className="size-4" />}>
-                {c.shareId ? 'Udostępnij' : 'Zaproś do negocjacji'}
-              </Button>
+            {isOwner && (
+              <span className="flex items-center gap-2">
+                <TeamAvatars c={c} onClick={() => setTeamOpen(true)} />
+                <Button variant="secondary" onClick={() => setTeamOpen(true)} icon={<Share2 className="size-4" />}>
+                  Udostępnij
+                </Button>
+              </span>
             )}
-            {c.stage === 'agreed' && !isSigned && !c.signatures.some((s) => s.partyId === viewer) && (
+            {!collaborator && c.stage === 'agreed' && !isSigned && !c.signatures.some((s) => s.partyId === viewer) && (
               <Button variant="accent" icon={<FileSignature className="size-4" />} onClick={goToSign}>
                 Podpisz
               </Button>
@@ -352,7 +364,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             )}
             <MoreMenu
               items={[
-                ...(!isSigned && c.stage !== 'agreed' && !c.signatures.some((s) => s.partyId === viewer) ? [{ label: 'Podpisz umowę', icon: <FileSignature className="size-4" />, onClick: goToSign }] : []),
+                ...(!collaborator && !isSigned && c.stage !== 'agreed' && !c.signatures.some((s) => s.partyId === viewer) ? [{ label: 'Podpisz umowę', icon: <FileSignature className="size-4" />, onClick: goToSign }] : []),
                 { label: pdfBusy ? 'Przygotowuję PDF…' : 'Pobierz PDF', icon: <Download className="size-4" />, onClick: downloadPdf },
                 ...(isOwner && !c.lawyerReview ? [{ label: 'Zweryfikuj u prawnika', icon: <Gavel className="size-4" />, onClick: () => setLawyerOpen(true) }] : []),
                 ...(isOwner ? [{ label: 'Zapisz jako mój wzór', icon: <BookmarkPlus className="size-4" />, onClick: () => setTplOpen(true) }] : []),
@@ -462,7 +474,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               To Twój projekt – możesz swobodnie edytować zapisy. Po wysłaniu do drugiej strony zmiany będą wymagały akceptacji obu stron.
             </Alert>
           )}
-          {c.stage !== 'draft' && <AgreementBar c={c} viewer={viewer} viewerName={viewerName} guard={guard} signPath={signPath} onJump={(id) => selectClause(id)} />}
+          {collaborator && <CollaboratorBar c={c} person={collaborator} />}
+          {!collaborator && c.stage !== 'draft' && <AgreementBar c={c} viewer={viewer} viewerName={viewerName} guard={guard} signPath={signPath} onJump={(id) => selectClause(id)} />}
           <article className={cx("rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200", fresh && "animate-doc-in")} aria-label="Treść umowy">
             <DocumentHeader c={c} />
             <div className="divide-y divide-slate-200/60">
@@ -476,7 +489,10 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   selected={selectedId === cl.id}
                   onSelect={() => setSelectedId(selectedId === cl.id ? null : cl.id)}
                   directEdit={directEdit}
-                  readOnly={isSigned}
+                  readOnly={isSigned || !!collaborator}
+                  canComment={!collaborator || collaborator.role === 'komentarze'}
+                  internalOnly={!!collaborator}
+                  showInternal={viewer === c.ownerPartyId}
                   onPropose={() => startProposal(cl)}
                   onCommentClause={(text) => commentClause(cl.id, text)}
                   onAsk={() => {
@@ -488,7 +504,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   decider={decider}
                   deciderName={deciderName}
                   onFinding={decideFinding_}
-                  canAct={!isSigned}
+                  canAct={!isSigned && !collaborator}
                   marks={visibleFindings.filter((x) => findingClauseId(x) === cl.id && !!x.f.clauseId)}
                   inserts={visibleFindings.filter((x) => !x.f.clauseId && findingClauseId(x) === cl.id)}
                   nextCommented={analysisDesktop ? nextCommented(i) : null}
@@ -505,7 +521,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
             <SignatureStrip
               c={c}
               viewer={viewer}
-              onSign={() => guard('Aby podpisać umowę, załóż bezpłatne konto.', () => setSignOpen(true))}
+              onSign={collaborator ? undefined : () => guard('Aby podpisać umowę, załóż bezpłatne konto.', () => setSignOpen(true))}
               blockedReason={openProposals.length > 0 ? 'Najpierw rozstrzygnijcie otwarte propozycje zmian.' : null}
               onSendToOther={isOwner && !isSigned ? () => setSendSignOpen(true) : undefined}
             />
@@ -519,6 +535,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
       <ProposalModal open={!!proposalFor} onClose={() => setProposalFor(null)} clause={proposalFor?.clause ?? null} initialText={proposalFor?.text} directEdit={directEdit} onSubmit={submitChange} />
       {isOwner && <ShareDialog contract={c} open={shareOpen} onClose={() => setShareOpen(false)} />}
+      {isOwner && <TeamShareDialog c={c} open={teamOpen} onClose={() => setTeamOpen(false)} onSendToSign={() => { setTeamOpen(false); setSendSignOpen(true) }} onShareOther={() => { setTeamOpen(false); setShareOpen(true) }} />}
       {isOwner && sendSignOpen && <SendToSignDialog contract={c} open onClose={() => setSendSignOpen(false)} onReviewFirst={!c.lawyerReview ? () => { setSendSignOpen(false); setLawyerOpen(true) } : undefined} />}
       {isOwner && <LawyerReviewDialog c={c} open={lawyerOpen} onClose={() => setLawyerOpen(false)} />}
       {isOwner && (
@@ -645,6 +662,9 @@ function ClauseBlock({
   readOnly,
   onPropose,
   onCommentClause,
+  canComment = true,
+  internalOnly = false,
+  showInternal = true,
   onAsk,
   onResolve,
   onCommentProposal,
@@ -673,6 +693,12 @@ function ClauseBlock({
   readOnly: boolean
   onPropose: () => void
   onCommentClause: (text: string) => void
+  /** Może dodawać komentarze (także w trybie tylko do odczytu – np. wspólnik). */
+  canComment?: boolean
+  /** Komentarze tej osoby są wewnętrzne (zespół właściciela). */
+  internalOnly?: boolean
+  /** Czy pokazywać komentarze wewnętrzne (tylko strona właściciela). */
+  showInternal?: boolean
   onAsk: () => void
   onResolve: (id: string, d: 'accepted' | 'rejected' | 'withdrawn', finalText?: string) => void
   onCommentProposal: (id: string, text: string) => void
@@ -698,7 +724,7 @@ function ClauseBlock({
   onEditParty?: (id: PartyId) => void
 }) {
   const open = c.proposals.filter((p) => p.clauseId === clause.id && p.status === 'open')
-  const comments = c.comments.filter((cm) => cm.clauseId === clause.id)
+  const comments = c.comments.filter((cm) => cm.clauseId === clause.id && (!cm.internal || showInternal))
   const pending = marks.filter((m) => m.f.status === 'pending')
   const pendingAll = [...marks, ...inserts].filter((m) => m.f.status === 'pending')
   const hasKey = pendingAll.some((m) => priorityOf(m.f) === 'najważniejsze')
@@ -786,16 +812,22 @@ function ClauseBlock({
             </div>
           )}
 
+          {selected && readOnly && canComment && !c.signatures.length && (
+            <div className="animate-fade-up mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={() => setCommenting(true)}>
+                {internalOnly ? 'Skomentuj (widzi tylko Twój zespół)' : 'Skomentuj'}
+              </Button>
+            </div>
+          )}
+
           {selected && !readOnly && (
             <div className="animate-fade-up mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="primary" icon={<Pencil className="size-3.5" />} onClick={onPropose}>
                 {directEdit ? 'Edytuj zapis' : 'Zaproponuj zmianę'}
               </Button>
-              {!directEdit && (
-                <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={() => setCommenting(true)}>
-                  Skomentuj
-                </Button>
-              )}
+              <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={() => setCommenting(true)}>
+                {directEdit ? 'Skomentuj (wewnętrznie)' : 'Skomentuj'}
+              </Button>
               <Button size="sm" variant="ghost" icon={<Bot className="size-3.5" />} onClick={onAsk}>
                 Zapytaj asystenta
               </Button>
@@ -841,7 +873,7 @@ function ClauseBlock({
                   <Avatar name={cm.authorName} tone={cm.authorPartyId === viewer ? 'brand' : 'violet'} size="sm" />
                   <div>
                     <p className="text-xs text-slate-500">
-                      <span className="font-semibold text-ink-900">{cm.authorPartyId === viewer ? 'Ty' : cm.authorName}</span> · {formatRelative(cm.createdAt)}
+                      <span className="font-semibold text-ink-900">{cm.authorPartyId === viewer && !cm.internal ? 'Ty' : cm.authorName}</span> · {formatRelative(cm.createdAt)}{cm.internal && <span className="ml-1.5 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800">wewnętrzny</span>}
                     </p>
                     <p className="mt-0.5 text-slate-800">{cm.text}</p>
                   </div>

@@ -14,7 +14,7 @@ export function parseFreeParty(input: string): SavedParty | null {
   // polecenie na początku: „wprowadź dane klienta na …”, „Dane drugiej strony: …”
   t = t
     .replace(/^\s*(?:prosz\p{L}*\s+)?(?:wprowad\p{L}*|wpisz|dodaj|uzupełn\p{L}*|zmie\p{L}*|ustaw|podmie\p{L}*|wstaw)\b.*?(?:\b(?:na|to)\b|:)\s*/iu, ' ')
-    .replace(/^\s*(?:dane\s+)?(?:klienta|kontrahenta|drugiej\s+strony|zleceniobiorcy|zleceniodawcy|wykonawcy|zamawiającego|najemcy|wynajmującego|kupującego|sprzedającego)\s*(?:to|:|-|–)?\s*/iu, ' ')
+    .replace(/^\s*(?:dane\s+)?(?:klienta|klient|kontrahenta|drugiej\s+strony|zleceniobiorcy|zleceniodawcy|wykonawcy|zamawiającego|najemcy|wynajmującego|kupującego|sprzedającego)\s*(?:to|:|-|–)?\s*/iu, ' ')
     .replace(/^\s*dane\s*(?::|-|–)\s*/iu, ' ')
 
   const take = (re: RegExp): RegExpMatchArray | null => {

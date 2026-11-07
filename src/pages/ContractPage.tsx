@@ -179,3 +179,32 @@ function AccountModal({ reason, onClose, onCreate, defaultName, defaultEmail }: 
     </Modal>
   )
 }
+
+/** Umowa udostępniona osobie z zespołu właściciela (np. wspólnikowi) – przegląd przed podpisem. */
+export function TeamContractPage() {
+  const { token } = useParams()
+  const { state } = useStore()
+  const c = state.contracts.find((x) => x.collaborators?.some((y) => y.token === token))
+  const person = c?.collaborators?.find((y) => y.token === token)
+  if (!c || !person) {
+    return (
+      <GuestLayout>
+        <EmptyState icon={<Link2Off className="size-6" />} title="Link jest nieaktywny" className="mx-auto mt-10 max-w-lg">
+          Dostęp mógł zostać odebrany. Poproś właściciela umowy o ponowne udostępnienie.
+        </EmptyState>
+      </GuestLayout>
+    )
+  }
+  return (
+    <GuestLayout
+      right={
+        <div className="flex items-center gap-2">
+          <Avatar name={person.name} size="sm" tone="violet" />
+          <span className="hidden text-sm font-medium text-ink-900 sm:inline">{person.name}</span>
+        </div>
+      }
+    >
+      <Workspace contract={c} viewer={c.ownerPartyId} viewerName={person.name} isOwner={false} hasAccount requireAccount={() => {}} signPath={`/umowy/${c.id}/podpis`} collaborator={person} />
+    </GuestLayout>
+  )
+}

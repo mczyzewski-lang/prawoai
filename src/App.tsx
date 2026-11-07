@@ -11,7 +11,7 @@ import OtherPage from './pages/OtherPage'
 import DeadlinesPage from './pages/DeadlinesPage'
 import CollectionPage from './pages/CollectionPage'
 import AnalyzePage from './pages/AnalyzePage'
-import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
+import { OwnerContractPage, SharedContractPage, TeamContractPage } from './pages/ContractPage'
 import { OwnerSignPage, SharedSignPage } from './pages/SignPage'
 import AssistantPage from './pages/AssistantPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -43,6 +43,7 @@ export default function App() {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route path="d/:shareId" element={<SharedContractPage />} />
+      <Route path="zespol/:token" element={<TeamContractPage />} />
       <Route path="d/:shareId/podpis" element={<SharedSignPage />} />
     </Routes>
     <VersionBadge />

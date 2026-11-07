@@ -93,12 +93,13 @@ export function commentProposal(c: Contract, proposalId: string, cm: { partyId: 
   return log(next, `${cm.authorName} skomentował(a) sugestię`, cm.partyId)
 }
 
-export function addComment(c: Contract, cm: { clauseId: string | null; text: string; partyId: PartyId; authorName: string }): Contract {
+export function addComment(c: Contract, cm: { clauseId: string | null; text: string; partyId: PartyId; authorName: string; internal?: boolean }): Contract {
   const next = {
     ...c,
-    comments: [...c.comments, { id: uid('c'), clauseId: cm.clauseId, authorPartyId: cm.partyId, authorName: cm.authorName, text: cm.text, createdAt: nowIso() }],
+    comments: [...c.comments, { id: uid('c'), clauseId: cm.clauseId, authorPartyId: cm.partyId, authorName: cm.authorName, text: cm.text, createdAt: nowIso(), internal: cm.internal || undefined }],
   }
-  return log(next, `${cm.authorName} dodał(a) komentarz`, cm.partyId)
+  const logged = log(next, `${cm.authorName} dodał(a) komentarz${cm.internal ? ' wewnętrzny' : ''}`, cm.partyId)
+  return cm.internal ? { ...logged, activity: logged.activity.map((a, i, all) => (i === all.length - 1 ? { ...a, internal: true } : a)) } : logged
 }
 
 export function acceptCurrentVersion(c: Contract, partyId: PartyId, name: string): Contract {
