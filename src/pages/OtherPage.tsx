@@ -1,6 +1,6 @@
 import { CheckCircle2, CircleDashed, Loader2 } from 'lucide-react'
 import { PageHeader } from '../components/ui'
-import { COMPETITOR, MOATS, type BacklogStatus } from '../data/backlog'
+import { MOATS, type BacklogStatus } from '../data/backlog'
 import { cx } from '../lib/utils'
 
 const STATUS: Record<BacklogStatus, { label: string; cls: string; icon: typeof CheckCircle2 }> = {
@@ -18,7 +18,7 @@ export default function OtherPage() {
       <PageHeader
         eyebrow="Inne"
         title="Założenia i backlog"
-        description={`Na czym budujemy przewagę Prawo.ai – „fosy” w czasach AI. Przy każdej: teza, jak robi to konkurencja (${COMPETITOR}), nasze podejście i lista zadań. Zrobione ${done} z ${all.length}.`}
+        description={`Na czym budujemy przewagę Prawo.ai – „fosy” w czasach AI. Przy każdej: teza, zasada Prawo.ai, sposób realizacji i lista zadań. Zrobione ${done} z ${all.length}.`}
       />
       <ol className="space-y-5">
         {MOATS.map((m) => (
@@ -33,11 +33,11 @@ export default function OtherPage() {
                   {m.check}
                 </p>
                 <div className="mt-4 rounded-2xl bg-brand-50/60 p-4 ring-1 ring-brand-100">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-800">Prawo.ai</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-800">Jak to realizujemy</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-800">{m.ours}</p>
                 </div>
               </div>
-              {/* Ciemny boks – zasada konkurenta, którą przyjmujemy jako punkt odniesienia */}
+              {/* Ciemny boks – zasada Prawo.ai */}
               <div className="self-start overflow-hidden rounded-2xl bg-ink-900 text-white shadow-sm">
                 <p className="flex items-center gap-2 border-b border-white/10 bg-black/20 px-4 py-2.5 text-sm font-semibold">
                   <span className="flex gap-1" aria-hidden>
@@ -45,9 +45,9 @@ export default function OtherPage() {
                     <span className="size-2.5 rounded-full bg-white/30" />
                     <span className="size-2.5 rounded-full bg-white/30" />
                   </span>
-                  Przykład · {COMPETITOR}
+                  Przykład · Prawo.ai
                 </p>
-                <p className="px-4 py-3.5 text-sm leading-relaxed text-white/90">{m.competitor}</p>
+                <p className="px-4 py-3.5 text-sm leading-relaxed text-white/90">{m.principle}</p>
               </div>
             </div>
             <ul className="divide-y divide-slate-100 border-t border-slate-100">

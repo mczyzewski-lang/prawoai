@@ -1,6 +1,6 @@
 /**
  * Założenia produktu i backlog Prawo.ai – „fosy” (trwałe przewagi) w czasach AI.
- * Punkt wyjścia: prezentacja „Od iTaxi do AI – fosy w czasach AI” i przykłady konkurenta (Kepta Legal).
+ * Punkt wyjścia: prezentacja „Od iTaxi do AI – fosy w czasach AI”.
  * Edytuj tutaj – strona „Inne” (/inne) i docs/BACKLOG.md opisują to samo.
  */
 
@@ -20,14 +20,12 @@ export interface Moat {
   thesis: string
   /** Pytanie kontrolne „Sprawdź:”. */
   check: string
-  /** Jak robi to konkurent – treść z ciemnego boksu „Przykład”. */
-  competitor: string
+  /** Zasada Prawo.ai – ciemny boks „Przykład”. */
+  principle: string
   /** Jak przekładamy to na Prawo.ai. */
   ours: string
   items: BacklogItem[]
 }
-
-export const COMPETITOR = 'Kepta Legal'
 
 export const MOATS: Moat[] = [
   {
@@ -35,7 +33,7 @@ export const MOATS: Moat[] = [
     title: 'Nikt nie sprawdza twojej pracy',
     thesis: 'Zaufanie zdobyte latami bycia w porządku – klient przestaje weryfikować.',
     check: 'Czego klient nigdy nie powierzyłby „domowej” wersji?',
-    competitor: 'Przy wysokim zaufaniu i eksperckości klient nie przegląda większości dokumentów. „Lawyer-verified” jako produkt: klient nie sprawdza, bo prawnik już sprawdził i za to odpowiada.',
+    principle: 'Przy wysokim zaufaniu i eksperckości klient nie przegląda większości dokumentów. „Lawyer-verified” jako produkt: klient nie sprawdza, bo prawnik już sprawdził i za to odpowiada.',
     ours: 'Wzory sprawdzone przez radców prawnych i adwokatów PRAVNA.pl to fundament. Kolejny krok: weryfikacja przez prawnika jako płatna usługa dla umów i analiz użytkownika – z imiennym podpisem i odpowiedzialnością.',
     items: [
       { title: 'Wzory „Sprawdzone przez prawników PRAVNA.pl”', detail: 'Plakietka na okładkach, stronach wzorów i w bibliotece.', status: 'gotowe' },
@@ -47,8 +45,8 @@ export const MOATS: Moat[] = [
     n: 5,
     title: 'Pozwolenia, licencje i certyfikaty',
     thesis: 'Software nie jest trudny. Trudne jest pozwolenie.',
-    check: 'Jakich zgód potrzebuje konkurent, zanim klient będzie mógł zmienić dostawcę?',
-    competitor: 'W kancelariach, z którymi pracuje Kepta, są prawnicy z uprawnieniami do reprezentacji klientów przed sądem. Nowy gracz bez licencjonowanych prawników nie przejmie sprawy sądowej klienta.',
+    check: 'Jakich zgód potrzebuje nowy gracz, zanim klient będzie mógł zmienić dostawcę?',
+    principle: 'W kancelariach, z którymi pracuje Prawo.ai, są prawnicy z uprawnieniami do reprezentacji klientów przed sądem. Nowy gracz bez licencjonowanych prawników nie przejmie od nas sprawy sądowej klienta.',
     ours: 'Prawo.ai prowadzi sprawę od umowy do sądu: gdy asystent rekomenduje prawnika albo umowa trafia w spór, sprawa przechodzi do radcy/adwokata PRAVNA z kompletem dokumentów i historią.',
     items: [
       { title: 'Rekomendacja prawnika w podsumowaniu asystenta', detail: 'Asystent ocenia, czy i dlaczego iść do prawnika.', status: 'gotowe' },
@@ -61,7 +59,7 @@ export const MOATS: Moat[] = [
     title: 'Wszyscy już tam są',
     thesis: 'Jedna osoba zmieni narzędzie w popołudnie. Cała drużyna – prawie nigdy.',
     check: 'Ile osób musi się przenieść naraz, żeby jeden klient odszedł?',
-    competitor: 'Cała firma klienta pracuje w jednym miejscu: sprzedaż – kontrakty, HR – umowy o pracę i aneksy, finanse – windykacja, obsługa klienta – reklamacje i sprawy klientów.',
+    principle: 'Chcemy, żeby pracowała z nami cała firma klienta: sprzedaż – kontrakty, HR – umowy o pracę i aneksy, finanse – windykacja, obsługa klienta – reklamacje i sprawy klientów.',
     ours: 'Konto firmowe z zespołem i działami. Każdy dział ma swoje wzory, bazę „Adresy i dane” i obieg (akceptacja, podpis). Druga strona negocjacji to też potencjalny użytkownik (link bez rejestracji).',
     items: [
       { title: 'Wspólne negocjacje z kontrahentem przez link', detail: 'Druga strona wchodzi bez instalacji – każdy kontrahent to nowy użytkownik.', status: 'gotowe' },
@@ -74,8 +72,8 @@ export const MOATS: Moat[] = [
     n: 7,
     title: 'Każdy klient czyni cię mądrzejszym',
     thesis: 'UX da się skopiować ze screenshotów. Wiedzy z prawdziwych wyników – nie.',
-    check: 'Co wiesz z realnego użycia, czego konkurent nie zasymuluje, nie zescrapuje i nie kupi?',
-    competitor: 'Skille, monitoring zapisów, proces windykacji, wzorce klauzul w umowach. Logują akcję i wynik: poprawki prawników i klauzule akceptowane przez drugą stronę.',
+    check: 'Co wiesz z realnego użycia, czego inni nie zasymulują, nie zescrapują i nie kupią?',
+    principle: 'Wiedza z realnego użycia: monitoring zapisów, proces windykacji, wzorce klauzul w umowach. Logujemy akcję i wynik: poprawki prawników i klauzule akceptowane przez drugą stronę.',
     ours: 'Każda decyzja w Prawo.ai to sygnał: akceptacja/odrzucenie uwagi AI, propozycja zmiany przyjęta lub odrzucona przez drugą stronę, poprawki prawnika. Z tego budujemy bazę klauzul, które realnie przechodzą w negocjacjach.',
     items: [
       { title: 'Decyzje przy uwagach i propozycjach', detail: 'Akceptuj / edytuj / odrzuć oraz przyjęcie propozycji przez drugą stronę – zapisane w historii.', status: 'gotowe' },
@@ -89,7 +87,7 @@ export const MOATS: Moat[] = [
     title: 'Trudne do utrzymania',
     thesis: 'To, czego nienawidzisz utrzymywać, może być twoją fosą.',
     check: 'Co się posypie po 6 miesiącach, jeśli klient zvibe-koduje cię idealnie?',
-    competitor: 'Pieter Levels tygodniami próbował zastąpić ScrapingBee (proxy, rotacja IP, anty-boty) – poddał się i płaci $99/mies. Drip: kilka osób na pełen etat tylko do walki ze spamem. E-mail wyśle każdy – dostarczy nie każdy.',
+    principle: 'Pieter Levels tygodniami próbował zastąpić ScrapingBee (proxy, rotacja IP, anty-boty) – poddał się i płaci $99/mies. Drip: kilka osób na pełen etat tylko do walki ze spamem. E-mail wyśle każdy – dostarczy nie każdy.',
     ours: 'Rzeczy żmudne, które muszą działać zawsze: dostarczalność e-maili i SMS do podpisu, podpis z potwierdzeniem tożsamości, aktualność wzorów po zmianach prawa, dane z KRS/CEIDG/biała lista VAT, odczyt skanów (OCR).',
     items: [
       { title: 'Wyślij do podpisu: link, e-mail, SMS', detail: 'Na razie z poczty/telefonu użytkownika.', status: 'gotowe' },
