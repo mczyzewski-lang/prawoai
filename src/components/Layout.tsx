@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BookUser, FileSearch, FolderOpen, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
+import { BookUser, FileSearch, FolderOpen, Layers, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
 import { ProfileModal } from './ProfileModal'
 import { Wordmark } from './BrandSymbol'
 import { useStore } from '../store/AppStore'
@@ -19,6 +19,8 @@ const NAV = [
   { to: '/asystent', label: 'Asystent AI', short: 'Asystent', icon: MessagesSquare },
   { to: '/umowy', label: 'Moje umowy', short: 'Umowy', icon: FolderOpen },
 ]
+/** Tylko w nawigacji desktopowej (na telefonie – w menu konta). */
+const NAV_EXTRA = [{ to: '/inne', label: 'Inne', icon: Layers }]
 
 function ProfileMenu() {
   const { state, resetDemo } = useStore()
@@ -73,6 +75,9 @@ function ProfileMenu() {
               Adresy i dane
               <span className="block text-xs text-slate-500">Osoby, sprzęt i inne dane do wstawiania przez @</span>
             </span>
+          </Link>
+          <Link role="menuitem" to="/inne" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 md:hidden">
+            <Layers className="size-4" aria-hidden /> Inne – założenia i backlog
           </Link>
           <div className="my-1 h-px bg-slate-100" />
           <Link role="menuitem" to="/umowy" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
@@ -138,7 +143,7 @@ export function AppLayout() {
             <Logo />
           </Link>
           <nav aria-label="Główna nawigacja" className="hidden flex-1 items-center gap-1 md:flex">
-            {NAV.slice(1).map((n) => (
+            {[...NAV.slice(1), ...NAV_EXTRA].map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
