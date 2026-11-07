@@ -194,6 +194,45 @@ export interface Contract {
   /** Prywatne rozmowy z asystentem – osobno dla każdej strony. */
   privateChats: Partial<Record<PartyId, ChatMessage[]>>
   activity: ActivityItem[]
+  /** Terminy z umowy (kalendarz i przypomnienia) – widoczne tylko dla właściciela. */
+  deadlines?: Deadline[]
+  /** Zamówienie weryfikacji umowy przez prawnika. */
+  lawyerReview?: LawyerReview
+}
+
+export type DeadlineKind = 'płatność' | 'wypowiedzenie' | 'przedłużenie' | 'realizacja' | 'odbiór' | 'gwarancja' | 'inne'
+
+/** Termin wynikający z umowy. `date` w formacie RRRR-MM-DD; puste, gdy termin zależy od zdarzenia (np. „7 dni od odbioru”). */
+export interface Deadline {
+  id: string
+  title: string
+  date: string
+  kind: DeadlineKind
+  /** Skąd termin: odczytany przez AI, z tekstu (reguły) albo dodany ręcznie. */
+  source: 'ai' | 'tekst' | 'ręcznie'
+  /** Data wyliczona od daty podpisania / utworzenia – warto potwierdzić. */
+  approximate?: boolean
+  /** Podstawa w umowie (cytat lub opis). */
+  basis?: string
+  clauseId?: string
+  /** Przypomnienia: ile dni przed terminem. */
+  remind: number[]
+  done?: boolean
+}
+
+export type LawyerReviewStatus = 'zamówiona' | 'w weryfikacji' | 'gotowa'
+
+export interface LawyerReview {
+  id: string
+  packageId: string
+  packageName: string
+  priceNet: number
+  express: boolean
+  note: string
+  contactEmail: string
+  orderedAt: string
+  dueAt: string
+  status: LawyerReviewStatus
 }
 
 export interface Conversation {

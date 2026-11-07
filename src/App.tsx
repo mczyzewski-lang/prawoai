@@ -8,6 +8,7 @@ import TemplatePreviewPage from './pages/TemplatePreviewPage'
 import ContractsPage from './pages/ContractsPage'
 import DataBookPage from './pages/DataBookPage'
 import OtherPage from './pages/OtherPage'
+import DeadlinesPage from './pages/DeadlinesPage'
 import AnalyzePage from './pages/AnalyzePage'
 import { OwnerContractPage, SharedContractPage } from './pages/ContractPage'
 import { OwnerSignPage, SharedSignPage } from './pages/SignPage'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="umowy" element={<ContractsPage />} />
         <Route path="dane" element={<DataBookPage />} />
         <Route path="inne" element={<OtherPage />} />
+        <Route path="terminy" element={<DeadlinesPage />} />
         <Route path="umowy/:id" element={<OwnerContractPage />} />
         <Route path="umowy/:id/podpis" element={<OwnerSignPage />} />
         <Route path="asystent" element={<AssistantPage />} />

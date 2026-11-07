@@ -349,6 +349,58 @@ async function legalChat(body) {
   return callModel(payload, process.env.OPENAI_CHAT_EFFORT || 'low')
 }
 
+// ——— Terminy z umowy (kalendarz i przypomnienia) ———
+const DEADLINES_PROMPT = `Wyciągasz z umowy zawartej w Polsce terminy, o których strona powinna pamiętać: płatności (w tym raty i zaliczki), realizację i odbiór, gwarancję i rękojmię, wypowiedzenie, koniec umowy i automatyczne przedłużenie, inne obowiązki z datą.
+Zasady:
+- date w formacie RRRR-MM-DD. Daty bezwzględne przepisz. Terminy liczone od podpisania/zawarcia umowy wylicz od referenceDate i ustaw approximate = true.
+- Dla umów na czas określony podaj koniec umowy (kind „przedłużenie”) i – jeśli jest okres wypowiedzenia lub automatyczne przedłużenie – ostatni dzień na wypowiedzenie (kind „wypowiedzenie”).
+- Płatności cykliczne: podaj najbliższe 3 wystąpienia od dziś (today).
+- Terminy zależne od innych zdarzeń (np. „7 dni od odbioru”, „30 dni od doręczenia faktury”) zwróć z date = "" – użytkownik uzupełni datę.
+- title: krótko i konkretnie, po polsku (np. „Zapłata 40% wynagrodzenia (17 736 zł)”, „Ostatni dzień na wypowiedzenie najmu”).
+- basis: krótki cytat lub opis podstawy w umowie. clauseIndex: numer zapisu z nawiasu kwadratowego (-1, gdy dotyczy całej umowy).
+- Nie wymyślaj terminów, których nie ma w umowie. Jeśli nie ma żadnych – zwróć pustą listę.`
+
+const DEADLINES_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['deadlines'],
+  properties: {
+    deadlines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'kind', 'date', 'approximate', 'basis', 'clauseIndex'],
+        properties: {
+          title: { type: 'string' },
+          kind: { type: 'string', enum: ['płatność', 'wypowiedzenie', 'przedłużenie', 'realizacja', 'odbiór', 'gwarancja', 'inne'] },
+          date: { type: 'string' },
+          approximate: { type: 'boolean' },
+          basis: { type: 'string' },
+          clauseIndex: { type: 'integer' },
+        },
+      },
+    },
+  },
+}
+
+async function extractDeadlines(body) {
+  const clauses = Array.isArray(body?.clauses) ? body.clauses : []
+  if (!clauses.length) throw Object.assign(new Error('Brak treści umowy.'), { status: 400, code: 'empty' })
+  const doc = clauses.map((c, i) => `[${i}] ${String(c.title ?? '').slice(0, 200)}\n${String(c.text ?? '')}`).join('\n\n')
+  if (doc.length > MAX_CHARS) throw Object.assign(new Error('Umowa jest za długa.'), { status: 413, code: 'too_long' })
+  const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? v : new Date().toISOString().slice(0, 10))
+  const payload = {
+    model: INTAKE_MODEL,
+    input: [
+      { role: 'system', content: DEADLINES_PROMPT },
+      { role: 'user', content: `today: ${ymd(body?.today)}\nreferenceDate: ${ymd(body?.referenceDate)} (${String(body?.referenceLabel ?? 'data podpisania').slice(0, 80)})\nTytuł: ${String(body?.title ?? '').slice(0, 200)}\n\n${doc}` },
+    ],
+    text: { format: { type: 'json_schema', name: 'contract_deadlines', strict: true, schema: DEADLINES_SCHEMA } },
+  }
+  return callModel(payload, process.env.OPENAI_CHAT_EFFORT || 'low')
+}
+
 // ——— Tworzenie umowy z opisu (rozmowa) ———
 const S = { type: 'string' }
 const PARTY_SCHEMA = {
@@ -590,6 +642,15 @@ createServer(async (req, res) => {
         res.end()
       }
       return
+    }
+    if (req.url === '/api/deadlines' && req.method === 'POST') {
+      if (!API_KEY) return send(res, 503, { error: 'Odczyt terminów przez AI nie jest skonfigurowany.', code: 'not_configured' })
+      if (intakeLimited(req)) return send(res, 429, { error: 'Wykorzystano godzinny limit. Spróbuj później.', code: 'rate_limited' })
+      const body = await readJson(req, 2_000_000)
+      const started = Date.now()
+      const out = await extractDeadlines(body)
+      console.log(`[deadlines] ${out.model} · ${out.result.deadlines?.length ?? 0} terminów · ${((Date.now() - started) / 1000).toFixed(1)} s`)
+      return send(res, 200, out)
     }
     if (req.url === '/api/assistant' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Asystent wymaga skonfigurowanego modelu AI.', code: 'not_configured' })

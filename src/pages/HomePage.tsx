@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Bookmark, Check, ChevronDown, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, ArrowRight, Bookmark, CalendarClock, Check, ChevronDown, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, Link2, Loader2, MessagesSquare, Sparkles, Upload } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { ButtonLink, EmptyState, StatusBadge } from '../components/ui'
-import { displayStatus, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
+import { displayStatus, formatDate, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
+import { allDeadlines, daysUntil, relativeLabel } from '../lib/deadlines'
 import { QUICK_STARTS } from '../lib/intake'
 import { useGenerate } from '../components/GenerateOverlay'
 import { MentionTextarea } from '../components/MentionTextarea'
@@ -18,6 +19,10 @@ export default function HomePage() {
   const contracts = [...state.contracts].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)))
   const awaiting = contracts.filter((c) => displayStatus(c, c.ownerPartyId) === 'awaiting')
   const firstName = state.profile.name.split(' ')[0]
+  const upcoming = allDeadlines(state.contracts)
+    .filter((r) => !r.d.done && r.d.date && daysUntil(r.d.date) <= 60)
+    .sort((a, b) => a.d.date.localeCompare(b.d.date))
+    .slice(0, 4)
   const [myTpl, setMyTpl] = useState<string | null>(null)
   const myTemplates = state.myTemplates ?? []
   const selectedTpl = myTemplates.find((t) => t.id === myTpl)
@@ -139,6 +144,35 @@ export default function HomePage() {
                   </span>
                   <span className="hidden shrink-0 text-sm font-semibold text-amber-800 group-hover:underline sm:inline">Odpowiedz</span>
                   <ChevronRight className="size-5 shrink-0 text-amber-700" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Najbliższe terminy z umów */}
+      {upcoming.length > 0 && (
+        <section aria-labelledby="deadlines-h" className="rounded-3xl bg-white p-4 ring-1 ring-slate-200 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="deadlines-h" className="flex items-center gap-2 font-semibold text-ink-900">
+              <CalendarClock className="size-5 text-brand-700" aria-hidden /> Najbliższe terminy
+            </h2>
+            <Link to="/terminy" className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-brand-700 hover:bg-brand-50">
+              Kalendarz <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
+          <ul className="mt-2 divide-y divide-slate-100">
+            {upcoming.map((r) => (
+              <li key={r.d.id}>
+                <Link to={`/umowy/${r.c.id}?panel=terminy`} className="flex items-center gap-3 py-2.5 hover:opacity-80">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-ink-900">{r.d.title}</span>
+                    <span className="block truncate text-xs text-slate-500">{r.c.title}</span>
+                  </span>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${daysUntil(r.d.date) < 0 ? 'bg-red-50 text-red-700' : daysUntil(r.d.date) <= 7 ? 'bg-amber-50 text-amber-800' : 'bg-brand-50 text-brand-800'}`}>
+                    {formatDate(r.d.date)} · {relativeLabel(r.d.date)}
+                  </span>
                 </Link>
               </li>
             ))}

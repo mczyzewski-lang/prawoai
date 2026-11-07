@@ -132,7 +132,7 @@ export function signUrl(shareId: string) {
  * „Wyślij do podpisu”: link do skopiowania, e-mail albo SMS do kontrahenta.
  * Wiadomość otwiera się w poczcie / aplikacji SMS użytkownika (automatyczna wysyłka wymaga usługi po stronie serwera).
  */
-export function SendToSignDialog({ contract, open, onClose }: { contract: Contract; open: boolean; onClose: () => void }) {
+export function SendToSignDialog({ contract, open, onClose, onReviewFirst }: { contract: Contract; open: boolean; onClose: () => void; onReviewFirst?: () => void }) {
   const { state, updateContract } = useStore()
   const toast = useToast()
   const other = contract.parties.find((p) => p.id === otherParty(contract.ownerPartyId))!
@@ -265,6 +265,22 @@ export function SendToSignDialog({ contract, open, onClose }: { contract: Contra
               </li>
             )}
           </ul>
+          {onReviewFirst && (
+            <p className="text-sm text-slate-600">
+              Chcesz, żeby prawnik sprawdził umowę przed wysłaniem?{' '}
+              <button type="button" onClick={onReviewFirst} className="font-semibold text-brand-700 hover:underline">
+                Zamów weryfikację
+              </button>
+            </p>
+          )}
+          {onReviewFirst && (
+            <p className="text-sm text-slate-600">
+              Chcesz, żeby prawnik sprawdził umowę przed wysłaniem?{' '}
+              <button type="button" onClick={onReviewFirst} className="font-semibold text-brand-700 hover:underline">
+                Zamów weryfikację
+              </button>
+            </p>
+          )}
         </div>
       )}
     </Modal>

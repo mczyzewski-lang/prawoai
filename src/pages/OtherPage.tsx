@@ -1,6 +1,6 @@
 import { ArrowRightLeft, CheckCircle2, CircleDashed, Loader2, Sparkles } from 'lucide-react'
 import { PageHeader } from '../components/ui'
-import { DIFFERENCES, MARKET, MARKET_SUMMARY, MOATS, type BacklogStatus } from '../data/backlog'
+import { COLLECTION_FLOW, DIFFERENCES, MARKET, MARKET_SUMMARY, MOATS, type BacklogStatus } from '../data/backlog'
 import { cx } from '../lib/utils'
 
 const STATUS: Record<BacklogStatus, { label: string; cls: string; icon: typeof CheckCircle2 }> = {
@@ -123,6 +123,35 @@ export default function OtherPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="mt-10" aria-labelledby="flow-h">
+        <h2 id="flow-h" className="text-xl font-semibold tracking-tight text-ink-900 sm:text-2xl">Proponowany przepływ: windykacja</h2>
+        <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-slate-700">Od przeterminowanej płatności w kalendarzu do sprawy u prawnika – samodzielnie i tanio na początku, z kancelarią wtedy, gdy jest potrzebna. Do akceptacji przed wdrożeniem.</p>
+        <ol className="relative mt-5 space-y-3 before:absolute before:bottom-4 before:left-[1.1rem] before:top-4 before:w-px before:bg-slate-300">
+          {COLLECTION_FLOW.map((st, i) => (
+            <li key={st.title} className="relative flex gap-4">
+              <span className="z-10 grid size-9 shrink-0 place-items-center rounded-full bg-ink-900 text-sm font-semibold text-white ring-4 ring-sand-50">{i + 1}</span>
+              <div className="min-w-0 flex-1 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-semibold text-ink-900">{st.title}</h3>
+                  <span className="text-xs text-slate-500">{st.when}</span>
+                </div>
+                <p className="mt-1 text-sm leading-relaxed text-slate-700">{st.what}</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  <span className="font-semibold text-brand-800">AI: </span>
+                  {st.ai}
+                </p>
+                {st.paid && (
+                  <p className="mt-1.5 inline-block rounded-lg bg-amber-50 px-2.5 py-1 text-sm text-amber-900 ring-1 ring-amber-200">
+                    <span className="font-semibold">Płatne: </span>
+                    {st.paid}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
     </div>
   )

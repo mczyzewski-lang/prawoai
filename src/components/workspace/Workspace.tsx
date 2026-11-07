@@ -5,7 +5,9 @@ import {
   ArrowLeft,
   BookmarkPlus,
   FileText,
+  Gavel,
   Bot,
+  CalendarClock,
   Check,
   CheckCircle2,
   Clock,
@@ -40,6 +42,9 @@ import { partyLine } from '../../lib/contractGenerator'
 import type { SavedParty } from '../../types'
 import { useToast } from '../Toast'
 import { SendToSignDialog, ShareDialog } from '../ShareDialog'
+import { DeadlinesPanel } from '../deadlines/DeadlineParts'
+import { LawyerReviewCard, LawyerReviewDialog, LawyerReviewStatus } from '../LawyerReview'
+import { daysUntil } from '../../lib/deadlines'
 import { SignModal } from '../SignModal'
 import { FindingCard, PRIORITY_META, ProposalCard, priorityOf } from './Cards'
 import { matchesFilter, numberFindings, type FindingFilter, type NumberedFinding } from './Annotations'
@@ -50,7 +55,7 @@ import { ClauseBody, ClauseHeading, DocumentHeader, PartiesColumns, SignatureStr
 import { isPartiesClause, partiesClauseIsGenerated } from '../../lib/documentFormat'
 import { downloadContractPdf } from '../../lib/pdf'
 
-type Panel = 'dokument' | 'analiza' | 'negocjacje' | 'asystent' | 'historia'
+type Panel = 'dokument' | 'analiza' | 'negocjacje' | 'asystent' | 'terminy' | 'historia'
 
 export interface WorkspaceProps {
   contract: Contract
@@ -91,6 +96,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const [proposalFor, setProposalFor] = useState<{ clause: Clause; text?: string } | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [sendSignOpen, setSendSignOpen] = useState(false)
+  const [lawyerOpen, setLawyerOpen] = useState(false)
   const otherSigned = c.signatures.some((sg) => sg.partyId !== c.ownerPartyId)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -235,14 +241,17 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
     }
   }
 
+  // Terminy w ciągu 7 dni (lub po terminie), niewykonane
+  const upcomingDeadlines = (c.deadlines ?? []).filter((d) => !d.done && d.date && daysUntil(d.date) <= 7).length
   const tabs = useMemo(() => {
     const t: { id: Panel; label: string; hint: string; icon: ReactNode; count?: number }[] = []
     if (hasAnalysis) t.push({ id: 'analiza', label: 'Uwagi', hint: 'Ocena umowy i propozycje zmian', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
     t.push({ id: 'asystent', label: 'Asystent', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
     t.push({ id: 'negocjacje', label: 'Negocjacje', hint: 'Propozycje i komentarze stron', icon: <Users className="size-4" aria-hidden />, count: openProposals.length })
+    if (isOwner) t.push({ id: 'terminy', label: 'Terminy', hint: 'Kalendarz terminów i przypomnienia', icon: <CalendarClock className="size-4" aria-hidden />, count: upcomingDeadlines })
     t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
     return t
-  }, [hasAnalysis, pendingFindings, openProposals.length])
+  }, [hasAnalysis, pendingFindings, openProposals.length, isOwner, upcomingDeadlines])
 
   const stages = [
     { id: 'draft', label: 'Projekt' },
@@ -253,7 +262,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const stageIdx = stages.findIndex((s) => s.id === c.stage)
 
   const panelContent = (p: Exclude<Panel, 'dokument'>) => {
-    if (p === 'analiza' && hasAnalysis) return <AnalysisPanel c={c} numbered={numbered} filter={findingFilter} onFilter={setFindingFilter} onDecide={decideFinding_} onShow={(id) => activateFinding(id, 'list')} />
+    if (p === 'analiza' && hasAnalysis) return <AnalysisPanel c={c} numbered={numbered} filter={findingFilter} onFilter={setFindingFilter} onDecide={decideFinding_} onShow={(id) => activateFinding(id, 'list')} onOrderReview={isOwner ? () => setLawyerOpen(true) : undefined} />
     if (p === 'negocjacje')
       return (
         <NegotiationPanel
@@ -313,6 +322,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           persona={isOwner ? personaFor(appState.profile) : undefined}
         />
       )
+    if (p === 'terminy' && isOwner) return <DeadlinesPanel c={c} onChange={(fn) => updateContract(c.id, (x) => ({ ...x, deadlines: fn(x.deadlines) }))} onOpenClause={(id) => selectClause(id)} />
     return <HistoryPanel c={c} />
   }
 
@@ -329,6 +339,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={status} />
+              {isOwner && c.lawyerReview && <LawyerReviewStatus r={c.lawyerReview} compact />}
               <span className="text-xs text-slate-500">
                 Wersja {version} · aktualizacja {formatRelative(c.updatedAt)}
               </span>
@@ -363,6 +374,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               items={[
                 ...(!isSigned && c.stage !== 'agreed' && !c.signatures.some((s) => s.partyId === viewer) ? [{ label: 'Podpisz umowę', icon: <FileSignature className="size-4" />, onClick: goToSign }] : []),
                 { label: pdfBusy ? 'Przygotowuję PDF…' : 'Pobierz PDF', icon: <Download className="size-4" />, onClick: downloadPdf },
+                ...(isOwner && !c.lawyerReview ? [{ label: 'Zweryfikuj u prawnika', icon: <Gavel className="size-4" />, onClick: () => setLawyerOpen(true) }] : []),
                 ...(isOwner ? [{ label: 'Zapisz jako mój wzór', icon: <BookmarkPlus className="size-4" />, onClick: () => setTplOpen(true) }] : []),
                 ...(isOwner ? [{ label: 'Usuń umowę', icon: <Trash2 className="size-4" />, onClick: () => setDeleteOpen(true), danger: true }] : []),
               ]}
@@ -457,6 +469,11 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           {analysisDesktop && (
             <div className="mb-4 hidden lg:block">
               <AnalysisOverview c={c} filter={findingFilter} onFilter={setFindingFilter} compactDetails />
+              {isOwner && (
+                <div className="mt-3">
+                  <LawyerReviewCard c={c} onOrder={() => setLawyerOpen(true)} />
+                </div>
+              )}
               <p className="mt-2 text-xs text-slate-500">Kliknij zakreślony fragment, aby zobaczyć komentarz, albo komentarz, aby wskazać fragment w tekście.</p>
             </div>
           )}
@@ -525,7 +542,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
       <ProposalModal open={!!proposalFor} onClose={() => setProposalFor(null)} clause={proposalFor?.clause ?? null} initialText={proposalFor?.text} directEdit={directEdit} onSubmit={submitChange} />
       {isOwner && <ShareDialog contract={c} open={shareOpen} onClose={() => setShareOpen(false)} />}
-      {isOwner && sendSignOpen && <SendToSignDialog contract={c} open onClose={() => setSendSignOpen(false)} />}
+      {isOwner && sendSignOpen && <SendToSignDialog contract={c} open onClose={() => setSendSignOpen(false)} onReviewFirst={!c.lawyerReview ? () => { setSendSignOpen(false); setLawyerOpen(true) } : undefined} />}
+      {isOwner && <LawyerReviewDialog c={c} open={lawyerOpen} onClose={() => setLawyerOpen(false)} />}
       {isOwner && (
         <Modal
           open={tplOpen}
@@ -1101,7 +1119,7 @@ function NegotiationMessage({ c, initial }: { c: Contract; initial: string }) {
 }
 
 /** Lista komentarzy (telefon / wąski ekran). */
-function AnalysisPanel({ c, numbered, filter, onFilter, onDecide, onShow }: { c: Contract; numbered: NumberedFinding[]; filter: FindingFilter; onFilter: (f: FindingFilter) => void; onDecide: (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => void; onShow: (id: string) => void }) {
+function AnalysisPanel({ c, numbered, filter, onFilter, onDecide, onShow, onOrderReview }: { c: Contract; numbered: NumberedFinding[]; filter: FindingFilter; onFilter: (f: FindingFilter) => void; onDecide: (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => void; onShow: (id: string) => void; onOrderReview?: () => void }) {
   const list = numbered.filter((x) => matchesFilter(x.f, filter))
   const anchored = list.filter((x) => x.f.clauseId)
   const missing = list.filter((x) => !x.f.clauseId)
@@ -1109,6 +1127,7 @@ function AnalysisPanel({ c, numbered, filter, onFilter, onDecide, onShow }: { c:
   return (
     <div className="space-y-4">
       <AnalysisOverview c={c} filter={filter} onFilter={onFilter} compactDetails />
+      {onOrderReview && <LawyerReviewCard c={c} onOrder={onOrderReview} />}
       {list.length === 0 ? (
         <EmptyState icon={<CheckCircle2 className="size-6" />} title={filter === 'rozpatrzone' ? 'Nic jeszcze nie rozpatrzono' : 'Brak otwartych komentarzy w tej grupie'}>
           {filter === 'rozpatrzone' ? 'Zaakceptowane i odrzucone komentarze pojawią się tutaj.' : 'Możesz zaprosić drugą stronę do negocjacji.'}
