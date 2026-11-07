@@ -82,7 +82,8 @@ export default function AnalyzePage() {
       const raw = sessionStorage.getItem(HANDOFF_KEY)
       if (!raw) return
       sessionStorage.removeItem(HANDOFF_KEY)
-      const h = JSON.parse(raw) as { text: string; fileName: string | null }
+      const h = JSON.parse(raw) as { text: string; fileName: string | null; context?: string }
+      if (h.context) setContext(h.context)
       setText(h.text)
       setFileName(h.fileName)
       setMode(h.fileName ? 'file' : 'paste')

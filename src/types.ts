@@ -76,6 +76,8 @@ export interface Collaborator {
   role: CollaboratorRole
   invitedAt: string
   approvedAt?: string
+  /** Dołączył(a) przez link (bez zaproszenia e-mailem). */
+  viaLink?: boolean
 }
 
 export interface Version {
@@ -229,6 +231,8 @@ export interface Contract {
   lawyerReview?: LawyerReview
   /** Osoby z Twojej strony z dostępem do umowy (np. wspólnik). */
   collaborators?: Collaborator[]
+  /** Link dla zespołu: kto go otworzy i poda imię, dostaje dostęp z tymi uprawnieniami. */
+  teamLink?: { token: string; role: CollaboratorRole; enabled: boolean }
 }
 
 export type DeadlineKind = 'płatność' | 'wypowiedzenie' | 'przedłużenie' | 'realizacja' | 'odbiór' | 'gwarancja' | 'inne'

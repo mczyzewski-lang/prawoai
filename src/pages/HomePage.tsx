@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowRight, Bookmark, CalendarClock, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, LayoutTemplate, Link2, Loader2, MessagesSquare, Paperclip, Plus, Sparkles, Upload, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Bookmark, CalendarClock, ChevronRight, EyeOff, FilePlus2, FileSearch, FileText, FolderOpen, Handshake, LayoutTemplate, Link2, Loader2, MessagesSquare, Paperclip, Plus, Sparkles, X } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { ButtonLink, EmptyState, Modal, StatusBadge, Tabs } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { templateFromText } from '../lib/templateFromText'
 import { getTemplate, TEMPLATES } from '../data/templates'
-import { displayStatus, formatDate, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
+import { cx, displayStatus, formatDate, formatRelative, lastActivity, otherParty, plural } from '../lib/utils'
 import { allDeadlines, daysUntil, relativeLabel } from '../lib/deadlines'
 import { QUICK_STARTS } from '../lib/intake'
 import { useGenerate } from '../components/GenerateOverlay'
@@ -33,6 +33,36 @@ export default function HomePage() {
   const { generate, overlay, busy, contacts } = useGenerate()
   const toast = useToast()
   const [chooserOpen, setChooserOpen] = useState(false)
+  const [modeOverride, setModeOverride] = useState<'create' | 'analyze' | null>(null)
+  const autoMode = detectIntent(prompt, attach)
+  const mode = modeOverride ?? autoMode
+  const navigate = useNavigate()
+  /** Analiza: wklejona treść albo dodany plik trafia do „Analizuj umowę” (z Twoim opisem jako kontekstem). */
+  const analyze = () => {
+    const isFile = attach?.kind === 'file'
+    const text = isFile ? attach.text : prompt
+    if (!text.trim()) return
+    sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ text, fileName: isFile ? attach.name : null, context: isFile ? prompt.trim() : '' }))
+    navigate('/analiza')
+  }
+  const run = () => (mode === 'analyze' ? analyze() : start(prompt))
+  const [dragOver, setDragOver] = useState(false)
+  const addFile = async (f: File) => {
+    setFileBusy(true)
+    try {
+      const text = await extractText(f)
+      const tpl = templateFromText(text, f.name.replace(/\.[^.]+$/, ''), state.profile.ownParty)
+      if (!tpl) throw new ExtractError('Nie rozpoznaliśmy zapisów umowy w tym pliku.')
+      setAttach({ kind: 'file', name: f.name, template: tpl, text })
+      setModeOverride(null)
+      document.getElementById('home-prompt')?.focus()
+    } catch (err) {
+      toast(err instanceof ExtractError ? err.message : 'Nie udało się odczytać pliku.', 'error')
+    } finally {
+      setFileBusy(false)
+    }
+  }
+  const canRun = mode === 'analyze' ? (attach?.kind === 'file' ? true : prompt.trim().split(/\s+/).length >= 20) : !!prompt.trim()
   const [fileBusy, setFileBusy] = useState(false)
   // „Użyj wzoru” z Moich umów: /?wzor=<id>
   const [params, setParams] = useSearchParams()
@@ -59,8 +89,8 @@ export default function HomePage() {
       <section aria-label="Główne akcje">
         <p className="text-sm font-medium text-brand-700">Dzień dobry, {firstName}</p>
         <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-tight text-ink-900 sm:text-3xl">Co chcesz dziś zrobić?</h1>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {/* Stwórz umowę */}
+        <div className="mt-5">
+          {/* Jedno pole: utwórz albo przeanalizuj – zależnie od tego, co wpiszesz lub dodasz */}
           <div className="relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-ink-900 to-ink-800 p-5 text-white shadow-lg sm:p-6">
             <div className="pointer-events-none absolute -right-20 -top-20 size-60 rounded-full bg-brand-500/20 blur-3xl" aria-hidden />
             <div className="relative flex items-center gap-3">
@@ -68,15 +98,28 @@ export default function HomePage() {
                 <FilePlus2 className="size-5" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold">Stwórz umowę</h2>
-                <p className="text-sm text-white/70">Opisz ją własnymi słowami – dopytamy o szczegóły.</p>
+                <h2 className="text-lg font-semibold">Stwórz lub sprawdź umowę</h2>
+                <p className="text-sm text-white/70">Opisz, jakiej umowy potrzebujesz – albo wklej lub dodaj umowę, a ocenimy ją z Twojej perspektywy.</p>
               </div>
             </div>
             <form
-              className="relative mt-4 flex-1 rounded-2xl bg-white p-2 shadow-xl"
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                  e.preventDefault()
+                  setDragOver(true)
+                }
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragOver(false)
+                const f = e.dataTransfer.files?.[0]
+                if (f) void addFile(f)
+              }}
+              className={cx('relative mt-4 flex-1 rounded-2xl bg-white p-2 shadow-xl transition', dragOver && 'ring-4 ring-brand-300')}
               onSubmit={(e) => {
                 e.preventDefault()
-                start(prompt)
+                run()
               }}
             >
               <label htmlFor="home-prompt" className="sr-only">
@@ -87,29 +130,16 @@ export default function HomePage() {
                 rows={4}
                 value={prompt}
                 onChange={setPrompt}
-                onSubmit={() => start(prompt)}
+                onSubmit={run}
                 contacts={contacts}
-                placeholder={selectedTpl ? `Wklej dane drugiej strony do „${attach?.kind === 'file' ? attach.name : selectedTpl.name}” albo wskaż ją przez @` : attach?.kind === 'lib' ? 'Opisz, na czym Ci zależy – np. strony, kwota, terminy' : 'Np. Umowa zlecenia z Janem Kowalskim na obsługę stoiska 12–14 grudnia, 3000 zł. Zależy mi na płatności po wykonaniu.'}
+                placeholder={mode === 'analyze' && attach?.kind === 'file' ? `Na czym Ci zależy przy „${attach.name}”? (opcjonalnie – np. „jestem zleceniodawcą, ważne są dla mnie terminy”)` : selectedTpl ? `Wklej dane drugiej strony do „${attach?.kind === 'file' ? attach.name : selectedTpl.name}” albo wskaż ją przez @` : attach?.kind === 'lib' ? 'Opisz, na czym Ci zależy – np. strony, kwota, terminy' : 'Np. „Umowa zlecenia z Janem Kowalskim na obsługę stoiska, 3000 zł” – albo wklej tutaj treść umowy do sprawdzenia'}
                 boxClassName="rounded-xl border-0 px-3 py-2.5 text-[16px] leading-6"
                 inputClassName="text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
               <div className="flex min-w-0 items-center gap-2 px-1 pb-1">
                 <PlusMenu
                   onPickTemplate={() => setChooserOpen(true)}
-                  onFile={async (f) => {
-                    setFileBusy(true)
-                    try {
-                      const text = await extractText(f)
-                      const tpl = templateFromText(text, f.name.replace(/\.[^.]+$/, ''), state.profile.ownParty)
-                      if (!tpl) throw new ExtractError('Nie rozpoznaliśmy zapisów umowy w tym pliku.')
-                      setAttach({ kind: 'file', name: f.name, template: tpl })
-                      document.getElementById('home-prompt')?.focus()
-                    } catch (err) {
-                      toast(err instanceof ExtractError ? err.message : 'Nie udało się odczytać pliku.', 'error')
-                    } finally {
-                      setFileBusy(false)
-                    }
-                  }}
+                  onFile={addFile}
                   busy={fileBusy}
                 />
                 {attach ? (
@@ -121,14 +151,33 @@ export default function HomePage() {
                     </button>
                   </span>
                 ) : (
-                  <span className="hidden min-w-0 truncate text-xs text-slate-400 sm:inline">Wzór lub plik jako baza – opcjonalnie</span>
+                  <span className="hidden min-w-0 truncate text-xs text-slate-400 sm:inline">Dodaj umowę do sprawdzenia albo wzór</span>
                 )}
                 <span className="flex-1" />
-                <button type="submit" disabled={!prompt.trim() || busy} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
-                  <Sparkles className="size-4" aria-hidden /> Generuj bezpłatnie
+                <div role="radiogroup" aria-label="Co zrobić" className="hidden shrink-0 rounded-xl bg-slate-100 p-0.5 sm:flex">
+                  {(['create', 'analyze'] as const).map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setModeOverride(m === autoMode ? null : m)} className={cx('rounded-lg px-2.5 py-1.5 text-xs font-medium transition', mode === m ? 'bg-white text-ink-900 shadow-sm' : 'text-slate-500 hover:text-ink-900')}>
+                      {m === 'create' ? 'Utwórz' : 'Analizuj'}
+                    </button>
+                  ))}
+                </div>
+                <button type="submit" disabled={!canRun || busy} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
+                  {mode === 'analyze' ? <FileSearch className="size-4" aria-hidden /> : <Sparkles className="size-4" aria-hidden />} {mode === 'analyze' ? 'Analizuj umowę' : 'Generuj bezpłatnie'}
                 </button>
               </div>
             </form>
+            <p className="relative mt-2 flex flex-wrap items-center gap-x-2 text-xs text-white/70" aria-live="polite">
+              {mode === 'analyze'
+                ? attach?.kind === 'file'
+                  ? `Ocenimy „${attach.name}” z Twojej perspektywy. Chcesz zamiast tego utworzyć nową umowę na jej bazie? Wpisz dane drugiej strony.`
+                  : 'Wygląda na treść umowy – ocenimy ją z Twojej perspektywy.'
+                : attach?.kind === 'file'
+                  ? `Utworzymy nową umowę na bazie „${attach.name}”.`
+                  : 'Wklej treść umowy albo przeciągnij plik, a przeanalizujemy ją zamiast tworzyć nową.'}
+              <button type="button" className="font-semibold text-white underline sm:hidden" onClick={() => setModeOverride(mode === 'create' ? 'analyze' : 'create')}>
+                {mode === 'create' ? 'Analizuj zamiast' : 'Utwórz zamiast'}
+              </button>
+            </p>
             {chooserOpen && (
               <TemplateChooser
                 mine={myTemplates}
@@ -159,8 +208,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Przeanalizuj umowę */}
-          <AnalyzeCard />
         </div>
 
         <Link to="/asystent" className="group mt-4 flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 transition hover:ring-brand-300">
@@ -281,122 +328,6 @@ export default function HomePage() {
   )
 }
 
-function AnalyzeCard() {
-  const navigate = useNavigate()
-  const [mode, setMode] = useState<'file' | 'paste'>('file')
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [drag, setDrag] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const go = (t: string, fileName: string | null) => {
-    try {
-      sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ text: t, fileName }))
-    } catch {
-      /* ignoruj */
-    }
-    navigate('/analiza')
-  }
-  const handleFile = async (f: File) => {
-    setError(null)
-    setBusy(true)
-    try {
-      go(await extractText(f), f.name)
-    } catch (e) {
-      setError(e instanceof ExtractError ? e.message : 'Nie udało się odczytać pliku.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-700" aria-hidden>
-          <FileSearch className="size-5" />
-        </span>
-        <div>
-          <h2 className="text-lg font-semibold text-ink-900">Przeanalizuj umowę</h2>
-          <p className="text-sm text-slate-600">Wskażemy ryzyka i podpowiemy, co zmienić.</p>
-        </div>
-      </div>
-      <div role="tablist" aria-label="Sposób dodania umowy" className="mt-4 flex w-fit gap-1 rounded-xl bg-slate-100 p-1 text-sm">
-        {(
-          [
-            ['file', 'Wgraj plik'],
-            ['paste', 'Wklej tekst'],
-          ] as const
-        ).map(([id, label]) => (
-          <button key={id} role="tab" type="button" aria-selected={mode === id} onClick={() => setMode(id)} className={`rounded-lg px-3 py-1.5 font-medium ${mode === id ? 'bg-white text-ink-900 shadow-sm' : 'text-slate-600'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-      {mode === 'file' ? (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDrag(true)
-          }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDrag(false)
-            const f = e.dataTransfer.files?.[0]
-            if (f) void handleFile(f)
-          }}
-          className={`mt-3 flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-8 text-center transition ${drag ? 'border-brand-500 bg-brand-50' : 'border-slate-300 bg-sand-50/60'}`}
-        >
-          {busy ? (
-            <p role="status" className="flex items-center gap-2 text-sm text-slate-600">
-              <Loader2 className="size-5 animate-spin text-brand-600" aria-hidden /> Odczytujemy plik…
-            </p>
-          ) : (
-            <>
-              <Upload className="size-7 text-brand-600" aria-hidden />
-              <p className="mt-2 font-medium text-ink-900">Przeciągnij umowę tutaj</p>
-              <p className="text-sm text-slate-500">PDF, DOCX lub TXT</p>
-              <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 rounded-xl bg-ink-900 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800">
-                Wybierz plik
-              </button>
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".pdf,.docx,.txt,.md"
-                className="sr-only"
-                aria-label="Wybierz plik umowy"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) void handleFile(f)
-                  e.target.value = ''
-                }}
-              />
-            </>
-          )}
-        </div>
-      ) : (
-        <div className="mt-3 flex flex-1 flex-col">
-          <label htmlFor="home-paste" className="sr-only">
-            Treść umowy
-          </label>
-          <textarea id="home-paste" rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Wklej pełną treść umowy…" className="w-full flex-1 resize-none rounded-2xl border border-slate-300 p-3 font-serif text-[15px] leading-relaxed focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
-          <div className="mt-2 flex justify-end">
-            <button type="button" disabled={text.trim().split(/\s+/).length < 30} onClick={() => go(text, null)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-40">
-              Analizuj <ArrowRight className="size-4" aria-hidden />
-            </button>
-          </div>
-        </div>
-      )}
-      {error && (
-        <p role="alert" className="mt-2 text-sm font-medium text-red-700">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
 function HomeRow({ c }: { c: Contract }) {
   const status = displayStatus(c, c.ownerPartyId)
   const other = c.parties.find((p) => p.id === otherParty(c.ownerPartyId))!
@@ -423,7 +354,20 @@ function HomeRow({ c }: { c: Contract }) {
   )
 }
 
-type Attach = { kind: 'my'; id: string } | { kind: 'lib'; id: string } | { kind: 'file'; name: string; template: MyTemplate }
+type Attach = { kind: 'my'; id: string } | { kind: 'lib'; id: string } | { kind: 'file'; name: string; template: MyTemplate; text: string }
+
+const CONTRACT_MARKERS = /§\s*\d|zawarta\s+w\s+dniu|pomiędzy\s*:|zwan\p{L}*\s+dalej|postanowienia\s+końcowe|niniejsz\p{L}+\s+umow/iu
+const ANALYZE_WORDS = /^\s*(przeanalizuj|sprawdź|oceń|zweryfikuj|analiz|co sądzisz|czy (mogę|warto) podpisać)/i
+const CREATE_WORDS = /\b(utwórz|stwórz|przygotuj|napisz|wygeneruj|nowa umowa|na bazie|na podstawie|klient|kontrahent|dane\s)/i
+
+/** Czy użytkownik chce utworzyć umowę, czy przeanalizować wklejoną / dodaną. */
+export function detectIntent(prompt: string, attach: Attach | null): 'create' | 'analyze' {
+  const words = prompt.trim().split(/\s+/).filter(Boolean).length
+  if (attach?.kind === 'file') return prompt.trim() && CREATE_WORDS.test(prompt) && !ANALYZE_WORDS.test(prompt) ? 'create' : 'analyze'
+  if (attach) return 'create'
+  if (words >= 120 || (words >= 50 && CONTRACT_MARKERS.test(prompt))) return 'analyze'
+  return 'create'
+}
 
 /** (+) przy polu „Stwórz umowę”: wybór wzoru lub dodanie pliku jako bazy umowy. */
 function PlusMenu({ onPickTemplate, onFile, busy }: { onPickTemplate: () => void; onFile: (f: File) => void; busy: boolean }) {

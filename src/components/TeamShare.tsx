@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Copy, Eye, Mail, MessageSquare, PenLine, Send, Trash2, UserPlus } from 'lucide-react'
+import { Check, Copy, Eye, Link2, Mail, MessageSquare, PenLine, Send, Trash2, UserPlus } from 'lucide-react'
 import type { Collaborator, CollaboratorRole, Contract } from '../types'
 import { useStore } from '../store/AppStore'
 import { Avatar, Button, Modal, TextField } from './ui'
@@ -63,19 +63,61 @@ export function TeamShareDialog({ c, open, onClose, onSendToSign, onShareOther }
     toast(`Udostępniono: ${person.name}`)
   }
 
-  const copy = async (x: Collaborator) => {
+  const copyText = async (text: string, key: string) => {
     try {
-      await navigator.clipboard.writeText(teamUrl(x.token))
-      setCopied(x.id)
+      await navigator.clipboard.writeText(text)
+      setCopied(key)
       setTimeout(() => setCopied(null), 2000)
     } catch {
-      toast('Nie udało się skopiować linku.', 'error')
+      toast('Nie udało się skopiować – zaznacz link i skopiuj go ręcznie.', 'error')
     }
   }
+  const copy = (x: Collaborator) => copyText(teamUrl(x.token), x.id)
+  const link = c.teamLink
+  const setLink = (l: NonNullable<Contract['teamLink']>) => updateContract(c.id, (x) => ({ ...x, teamLink: l }))
 
   return (
     <Modal open={open} onClose={onClose} size="lg" title={`Udostępnij „${c.title}”`} description="Pokaż umowę osobom ze swojej strony – np. wspólnikowi lub księgowej – zanim ją podpiszesz. Ich komentarze widzisz tylko Ty, nie druga strona.">
       <div className="space-y-5">
+        <section aria-label="Link do udostępnienia" className="rounded-2xl bg-brand-50/60 p-4 ring-1 ring-brand-100">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link2 className="size-5 shrink-0 text-brand-700" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink-900">Udostępnij linkiem</p>
+              <p className="text-xs text-slate-600">{link?.enabled ? 'Każdy, kto otworzy link i poda imię, dołączy do listy poniżej.' : 'Wyślij jeden link przez komunikator – bez wpisywania adresów e-mail.'}</p>
+            </div>
+            {link?.enabled ? (
+              <>
+                <label htmlFor="link-role" className="sr-only">
+                  Uprawnienia dla osób z linkiem
+                </label>
+                <select id="link-role" value={link.role} onChange={(e) => setLink({ ...link, role: e.target.value as CollaboratorRole })} className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm">
+                  {(Object.keys(ROLE_LABEL) as CollaboratorRole[]).map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" variant="primary" icon={copied === 'link' ? <Check className="size-4" /> : <Copy className="size-4" />} onClick={() => copyText(teamUrl(link.token), 'link')}>
+                  {copied === 'link' ? 'Skopiowano' : 'Kopiuj link'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setLink({ ...link, enabled: false })}>
+                  Wyłącz
+                </Button>
+              </>
+            ) : (
+              !isSigned && (
+                <Button size="sm" variant="primary" icon={<Link2 className="size-4" />} onClick={() => { const l = { token: link?.token ?? uid('t').replace('t_', ''), role: link?.role ?? 'komentarze', enabled: true } as const; setLink(l); void copyText(teamUrl(l.token), 'link') }}>
+                  Utwórz i skopiuj link
+                </Button>
+              )
+            )}
+          </div>
+          {link?.enabled && (
+            <input readOnly value={teamUrl(link.token)} onFocus={(e) => e.target.select()} aria-label="Link do udostępnienia" className="mt-3 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700" />
+          )}
+        </section>
+
         {!isSigned && (
           <form
             className="grid gap-2 sm:grid-cols-[1fr_1.2fr_auto_auto] sm:items-end"
@@ -121,7 +163,7 @@ export function TeamShareDialog({ c, open, onClose, onSendToSign, onShareOther }
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="block font-medium text-ink-900">{x.name}</span>
                   <span className="block truncate text-xs text-slate-500">
-                    {x.email} · {x.approvedAt ? <span className="font-medium text-brand-700">zatwierdził(a) {formatRelative(x.approvedAt)}</span> : `zaproszono ${formatRelative(x.invitedAt)}`}
+                    {x.email || 'dołączył(a) przez link'} · {x.approvedAt ? <span className="font-medium text-brand-700">zatwierdził(a) {formatRelative(x.approvedAt)}</span> : `zaproszono ${formatRelative(x.invitedAt)}`}
                   </span>
                 </span>
                 <label htmlFor={`role-${x.id}`} className="sr-only">

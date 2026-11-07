@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { FileQuestion, Link2Off, LogOut, ShieldCheck, UserPlus } from 'lucide-react'
 import { useStore } from '../store/AppStore'
 import { Workspace } from '../components/workspace/Workspace'
@@ -186,6 +186,9 @@ export function TeamContractPage() {
   const { state } = useStore()
   const c = state.contracts.find((x) => x.collaborators?.some((y) => y.token === token))
   const person = c?.collaborators?.find((y) => y.token === token)
+  // Wspólny link zespołu: po podaniu imienia osoba dołącza do listy z uprawnieniami linku.
+  const viaLink = state.contracts.find((x) => x.teamLink?.enabled && x.teamLink.token === token)
+  if (!person && viaLink) return <JoinByLink c={viaLink} />
   if (!c || !person) {
     return (
       <GuestLayout>
@@ -205,6 +208,43 @@ export function TeamContractPage() {
       }
     >
       <Workspace contract={c} viewer={c.ownerPartyId} viewerName={person.name} isOwner={false} hasAccount requireAccount={() => {}} signPath={`/umowy/${c.id}/podpis`} collaborator={person} />
+    </GuestLayout>
+  )
+}
+
+function JoinByLink({ c }: { c: Contract }) {
+  const { updateContract } = useStore()
+  const navigate = useNavigate()
+  const [name, setName] = useState('')
+  const owner = c.parties.find((p) => p.id === c.ownerPartyId)
+  const join = () => {
+    const token = uid('t').replace('t_', '')
+    updateContract(c.id, (x) => ({
+      ...x,
+      collaborators: [...(x.collaborators ?? []), { id: uid('cb'), token, name: name.trim(), email: '', role: x.teamLink!.role, invitedAt: nowIso(), viaLink: true }],
+      activity: [...x.activity, { id: uid('a'), at: nowIso(), text: `${name.trim()} dołączył(a) przez link`, partyId: x.ownerPartyId, internal: true }],
+    }))
+    navigate(`/zespol/${token}`, { replace: true })
+  }
+  return (
+    <GuestLayout>
+      <div className="mx-auto mt-10 max-w-md rounded-3xl bg-white p-6 ring-1 ring-slate-200">
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Umowa do przeglądu</p>
+        <h1 className="mt-1 text-xl font-semibold text-ink-900">{c.title}</h1>
+        <p className="mt-1 text-sm text-slate-600">{owner?.name || 'Właściciel umowy'} udostępnia Ci umowę przed podpisaniem. Podaj imię, żeby było wiadomo, kto dodaje komentarze.</p>
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (name.trim()) join()
+          }}
+        >
+          <TextField label="Imię i nazwisko" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <Button type="submit" variant="accent" className="w-full" disabled={!name.trim()}>
+            Otwórz umowę
+          </Button>
+        </form>
+      </div>
     </GuestLayout>
   )
 }
