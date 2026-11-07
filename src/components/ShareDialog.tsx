@@ -112,7 +112,7 @@ export function ShareDialog({ contract, open, onClose }: { contract: Contract; o
               <Check className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden /> Twoje prywatne notatki i rozmowy z asystentem pozostaną niewidoczne.
             </li>
             <li className="flex gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden /> Od teraz zmiany wprowadzacie jako propozycje do akceptacji.
+              <Check className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden /> Od teraz zmiany pojawiają się jako sugestie przy zapisach – druga strona je komentuje, a Ty decydujesz o ostatecznym brzmieniu.
             </li>
           </ul>
         </div>

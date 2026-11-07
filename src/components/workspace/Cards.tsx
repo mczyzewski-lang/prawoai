@@ -232,73 +232,155 @@ const PROPOSAL_STATUS = {
   withdrawn: { label: 'Wycofana', tone: 'slate' as const },
 }
 
+/**
+ * Sugestia zmiany zapisu z wątkiem komentarzy.
+ * Druga strona komentuje, a o ostatecznej formie decyduje pierwsza strona (właściciel umowy):
+ * akceptuje, edytuje i akceptuje albo odrzuca. Autor może sugestię wycofać.
+ */
 export function ProposalCard({
   p,
   clause,
   viewer,
+  decider,
+  deciderName,
   canAct,
-  onResolve,
+  onDecide,
+  onWithdraw,
+  onComment,
   onSelectClause,
-  onCounter,
 }: {
   p: Proposal
   clause?: Clause
   viewer: PartyId
+  /** Czy oglądający decyduje o sugestiach (pierwsza strona). */
+  decider: boolean
+  /** Imię/nazwa pierwszej strony – „decyduje: …”. */
+  deciderName: string
   canAct: boolean
-  onResolve: (d: 'accepted' | 'rejected' | 'withdrawn') => void
+  onDecide: (d: 'accepted' | 'rejected', finalText?: string) => void
+  onWithdraw: () => void
+  onComment: (text: string) => void
   onSelectClause?: () => void
-  onCounter?: () => void
 }) {
   const mine = p.authorPartyId === viewer
   const st = PROPOSAL_STATUS[p.status]
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(p.newText)
+  const [reply, setReply] = useState('')
+  const thread = p.thread ?? []
+  const lastOther = [...thread].reverse().find((t) => t.authorPartyId !== viewer)
+  const open = p.status === 'open'
   return (
-    <article className="rounded-2xl bg-white p-4 ring-1 ring-slate-200" aria-label={`Propozycja zmiany od ${p.authorName}`}>
+    <article className={cx('rounded-2xl bg-white p-4 ring-1', open ? 'ring-amber-200' : 'ring-slate-200')} aria-label={`Sugestia zmiany od ${p.authorName}`}>
       <div className="flex items-start gap-2.5">
         <Avatar name={p.authorName} tone={mine ? 'brand' : 'violet'} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="text-sm">
-            <span className="font-semibold text-ink-900">{mine ? 'Ty' : p.authorName}</span> <span className="text-slate-600">proponuje zmianę</span>
+            <span className="font-semibold text-ink-900">{mine ? 'Ty' : p.authorName}</span> <span className="text-slate-600">sugeruje zmianę</span>
           </p>
           <p className="text-xs text-slate-500">{formatRelative(p.createdAt)}</p>
         </div>
-        <Badge tone={st.tone}>{st.label}</Badge>
+        <Badge tone={st.tone}>{open && lastOther && decider ? 'Nowy komentarz' : st.label}</Badge>
       </div>
       {clause && onSelectClause && (
         <button type="button" onClick={onSelectClause} className="mt-2 text-xs font-medium text-brand-700 hover:underline">
           {clause.title}
         </button>
       )}
-      <div className="mt-2 rounded-xl bg-sand-50 p-3">
-        <Diff from={p.originalText} to={p.newText} />
-      </div>
+      {editing ? (
+        <div className="mt-2">
+          <label htmlFor={`pe-${p.id}`} className="mb-1 block text-xs font-semibold uppercase tracking-wide text-brand-800">
+            Ostateczne brzmienie
+          </label>
+          <textarea id={`pe-${p.id}`} value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} className="w-full rounded-lg border border-brand-200 bg-white p-2.5 font-serif text-[14px] leading-relaxed focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
+        </div>
+      ) : (
+        <div className="mt-2 rounded-xl bg-sand-50 p-3">
+          <Diff from={p.originalText} to={p.finalText ?? p.newText} />
+        </div>
+      )}
       {p.comment && (
         <p className="mt-2 flex gap-1.5 text-sm text-slate-700">
           <CircleHelp className="mt-0.5 size-3.5 shrink-0 text-slate-400" aria-hidden />
           <span>{p.comment}</span>
         </p>
       )}
+
+      {thread.length > 0 && (
+        <ul className="mt-3 space-y-2 border-l-2 border-slate-200 pl-3">
+          {thread.map((t) => (
+            <li key={t.id} className="text-sm">
+              <p className="text-xs text-slate-500">
+                <span className="font-semibold text-ink-900">{t.authorPartyId === viewer ? 'Ty' : t.authorName}</span> · {formatRelative(t.createdAt)}
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap text-slate-800">{t.text}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {p.status !== 'open' && p.resolvedByName && (
         <p className="mt-2 text-xs text-slate-500">
-          {PROPOSAL_STATUS[p.status].label} przez {p.resolvedByName} · {formatRelative(p.resolvedAt!)}
+          {p.finalText ? 'Przyjęta po edycji' : PROPOSAL_STATUS[p.status].label} przez {p.resolvedByName} · {formatRelative(p.resolvedAt!)}
         </p>
       )}
-      {p.status === 'open' && canAct && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {mine ? (
-            <Button size="sm" variant="ghost" icon={<Undo2 className="size-3.5" />} onClick={() => onResolve('withdrawn')}>
-              Wycofaj
-            </Button>
+
+      {open && canAct && !editing && (
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!reply.trim()) return
+            onComment(reply.trim())
+            setReply('')
+          }}
+        >
+          <label htmlFor={`pc-${p.id}`} className="sr-only">
+            Skomentuj sugestię
+          </label>
+          <input id={`pc-${p.id}`} value={reply} onChange={(e) => setReply(e.target.value)} placeholder={decider ? 'Odpowiedz na komentarz…' : 'Skomentuj sugestię, np. „zgoda, ale 40% zamiast 30%”'} className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
+          <Button type="submit" size="sm" variant="secondary" disabled={!reply.trim()}>
+            Wyślij
+          </Button>
+        </form>
+      )}
+
+      {open && canAct && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {decider ? (
+            editing ? (
+              <>
+                <Button size="sm" variant="accent" icon={<Check className="size-3.5" />} disabled={!draft.trim()} onClick={() => onDecide('accepted', draft)}>
+                  Zapisz i akceptuj
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                  Anuluj
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="accent" icon={<Check className="size-3.5" />} onClick={() => onDecide('accepted')}>
+                  Akceptuj
+                </Button>
+                <Button size="sm" variant="secondary" icon={<Pencil className="size-3.5" />} onClick={() => setEditing(true)}>
+                  Edytuj
+                </Button>
+                <Button size="sm" variant="ghost" icon={<X className="size-3.5" />} onClick={() => onDecide('rejected')}>
+                  Odrzuć
+                </Button>
+                {mine && (
+                  <Button size="sm" variant="ghost" icon={<Undo2 className="size-3.5" />} onClick={onWithdraw}>
+                    Wycofaj
+                  </Button>
+                )}
+              </>
+            )
           ) : (
             <>
-              <Button size="sm" variant="accent" icon={<Check className="size-3.5" />} onClick={() => onResolve('accepted')}>
-                Akceptuj zmianę
-              </Button>
-              <Button size="sm" variant="secondary" icon={<X className="size-3.5" />} onClick={() => onResolve('rejected')}>
-                Odrzuć
-              </Button>
-              {onCounter && (
-                <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={onCounter}>
-                  Kontrpropozycja
+              <span className="text-xs text-slate-500">O ostatecznym brzmieniu decyduje {deciderName}.</span>
+              {mine && (
+                <Button size="sm" variant="ghost" icon={<Undo2 className="size-3.5" />} onClick={onWithdraw}>
+                  Wycofaj
                 </Button>
               )}
             </>

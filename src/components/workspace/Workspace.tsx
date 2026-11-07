@@ -25,11 +25,10 @@ import {
   Send,
   Share2,
   Trash2,
-  Users,
 } from 'lucide-react'
 import type { ChatMessage, Clause, Contract, PartyId } from '../../types'
 import { useStore } from '../../store/AppStore'
-import { acceptCurrentVersion, addComment, addSignature, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
+import { acceptCurrentVersion, addComment, addSignature, commentProposal, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
 import { Alert, Avatar, Badge, Button, ButtonLink, EmptyState, Modal, StatusBadge, Tabs, TextField } from '../ui'
 import { ownDataDiffers, toMyTemplate } from '../../lib/intake'
@@ -55,7 +54,7 @@ import { ClauseBody, ClauseHeading, DocumentHeader, PartiesColumns, SignatureStr
 import { isPartiesClause, partiesClauseIsGenerated } from '../../lib/documentFormat'
 import { downloadContractPdf } from '../../lib/pdf'
 
-type Panel = 'dokument' | 'analiza' | 'negocjacje' | 'asystent' | 'terminy' | 'historia'
+type Panel = 'dokument' | 'analiza' | 'asystent' | 'terminy' | 'historia'
 
 export interface WorkspaceProps {
   contract: Contract
@@ -74,8 +73,10 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const hasAnalysis = isOwner && !!c.analysis
-  const defaultPanel: Panel = hasAnalysis && c.stage === 'draft' ? 'analiza' : c.stage === 'draft' && isOwner ? 'asystent' : 'negocjacje'
-  const panelParam = params.get('panel') as Panel | null
+  const defaultPanel: Exclude<Panel, 'dokument'> = hasAnalysis && c.stage === 'draft' ? 'analiza' : 'asystent'
+  // „negocjacje” – stare linki: sugestie są teraz przy zapisach w dokumencie
+  const rawPanel = params.get('panel')
+  const panelParam = (rawPanel === 'negocjacje' ? 'dokument' : rawPanel) as Panel | null
   // Świeżo wygenerowana umowa: animacja wejścia i odpowiedź asystenta po chwili.
   const [fresh] = useState(() => params.get('nowa') === '1')
   const [revealed, setRevealed] = useState(!fresh)
@@ -204,27 +205,25 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
       toast('Zapisano zmianę w projekcie')
     } else {
       updateContract(c.id, (x) => submitProposal(x, { clauseId, newText: text, comment, partyId: viewer, authorName: viewerName }))
-      toast('Propozycja została wysłana do drugiej strony')
-      setPanel('negocjacje')
+      toast('Sugestia dodana przy zapisie – druga strona może ją skomentować')
     }
     setProposalFor(null)
   }
 
-  const resolve = (proposalId: string, d: 'accepted' | 'rejected' | 'withdrawn') =>
-    guard('Aby odpowiadać na propozycje, załóż bezpłatne konto.', () => {
-      updateContract(c.id, (x) => resolveProposal(x, proposalId, d, { partyId: viewer, name: viewerName }))
-      toast(d === 'accepted' ? 'Zmiana przyjęta – utworzono nową wersję' : d === 'rejected' ? 'Propozycja odrzucona' : 'Propozycja wycofana')
+  const resolve = (proposalId: string, d: 'accepted' | 'rejected' | 'withdrawn', finalText?: string) =>
+    guard('Aby odpowiadać na sugestie, załóż bezpłatne konto.', () => {
+      updateContract(c.id, (x) => resolveProposal(x, proposalId, d, { partyId: viewer, name: viewerName }, finalText))
+      toast(d === 'accepted' ? (finalText ? 'Przyjęto zmienione brzmienie – utworzono nową wersję' : 'Zmiana przyjęta – utworzono nową wersję') : d === 'rejected' ? 'Sugestia odrzucona' : 'Sugestia wycofana')
     })
+  const commentOn = (proposalId: string, text: string) =>
+    guard('Aby komentować sugestie, załóż bezpłatne konto.', () => updateContract(c.id, (x) => commentProposal(x, proposalId, { partyId: viewer, authorName: viewerName, text })))
+  const commentClause = (clauseId: string, text: string) =>
+    guard('Aby komentować, załóż bezpłatne konto.', () => updateContract(c.id, (x) => addComment(x, { clauseId, text, partyId: viewer, authorName: viewerName })))
+  /** Pierwsza strona (właściciel umowy) decyduje o ostatecznym brzmieniu sugestii. */
+  const decider = viewer === c.ownerPartyId
+  const deciderName = c.parties.find((p) => p.id === c.ownerPartyId)?.name || 'pierwsza strona'
 
-  const counter = (proposalId: string) => {
-    const p = c.proposals.find((x) => x.id === proposalId)
-    const clause = c.clauses.find((x) => x.id === p?.clauseId)
-    if (!p || !clause) return
-    guard('Aby odpowiadać na propozycje, załóż bezpłatne konto.', () => {
-      updateContract(c.id, (x) => resolveProposal(x, proposalId, 'rejected', { partyId: viewer, name: viewerName }))
-      setProposalFor({ clause, text: p.newText })
-    })
-  }
+
 
   const appendChat = (msgs: ChatMessage[]) =>
     updateContract(c.id, (x) => ({ ...x, privateChats: { ...x.privateChats, [viewer]: [...(x.privateChats[viewer] ?? []), ...msgs] } }))
@@ -247,7 +246,6 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
     const t: { id: Panel; label: string; hint: string; icon: ReactNode; count?: number }[] = []
     if (hasAnalysis) t.push({ id: 'analiza', label: 'Uwagi', hint: 'Ocena umowy i propozycje zmian', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
     t.push({ id: 'asystent', label: 'Asystent', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
-    t.push({ id: 'negocjacje', label: 'Negocjacje', hint: 'Propozycje i komentarze stron', icon: <Users className="size-4" aria-hidden />, count: openProposals.length })
     if (isOwner) t.push({ id: 'terminy', label: 'Terminy', hint: 'Kalendarz terminów i przypomnienia', icon: <CalendarClock className="size-4" aria-hidden />, count: upcomingDeadlines })
     t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
     return t
@@ -255,7 +253,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
   const stages = [
     { id: 'draft', label: 'Projekt' },
-    { id: 'shared', label: 'Negocjacje' },
+    { id: 'shared', label: 'Uzgadnianie' },
     { id: 'agreed', label: 'Uzgodniona' },
     { id: 'signed', label: 'Podpisana' },
   ]
@@ -263,24 +261,6 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
   const panelContent = (p: Exclude<Panel, 'dokument'>) => {
     if (p === 'analiza' && hasAnalysis) return <AnalysisPanel c={c} numbered={numbered} filter={findingFilter} onFilter={setFindingFilter} onDecide={decideFinding_} onShow={(id) => activateFinding(id, 'list')} onOrderReview={isOwner ? () => setLawyerOpen(true) : undefined} />
-    if (p === 'negocjacje')
-      return (
-        <NegotiationPanel
-          c={c}
-          viewer={viewer}
-          viewerName={viewerName}
-          isOwner={isOwner}
-          hasAccount={hasAccount}
-          selected={selected}
-          onClearSelected={() => setSelectedId(null)}
-          onSelect={selectClause}
-          onResolve={resolve}
-          onCounter={counter}
-          onInvite={() => setShareOpen(true)}
-          guard={guard}
-          signPath={signPath}
-        />
-      )
     if (p === 'asystent')
       return (
         <PrivateAssistant
@@ -482,6 +462,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
               To Twój projekt – możesz swobodnie edytować zapisy. Po wysłaniu do drugiej strony zmiany będą wymagały akceptacji obu stron.
             </Alert>
           )}
+          {c.stage !== 'draft' && <AgreementBar c={c} viewer={viewer} viewerName={viewerName} guard={guard} signPath={signPath} onJump={(id) => selectClause(id)} />}
           <article className={cx("rounded-2xl bg-paper shadow-sm ring-1 ring-slate-200", fresh && "animate-doc-in")} aria-label="Treść umowy">
             <DocumentHeader c={c} />
             <div className="divide-y divide-slate-200/60">
@@ -497,19 +478,15 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
                   directEdit={directEdit}
                   readOnly={isSigned}
                   onPropose={() => startProposal(cl)}
-                  onComment={() => {
-                    setSelectedId(cl.id)
-                    guard('Aby komentować, załóż bezpłatne konto.', () => {
-                      setPanel('negocjacje')
-                      requestAnimationFrame(() => document.getElementById('comment-input')?.focus())
-                    })
-                  }}
+                  onCommentClause={(text) => commentClause(cl.id, text)}
                   onAsk={() => {
                     setSelectedId(cl.id)
                     setPanel('asystent')
                   }}
                   onResolve={resolve}
-                  onCounter={counter}
+                  onCommentProposal={commentOn}
+                  decider={decider}
+                  deciderName={deciderName}
                   onFinding={decideFinding_}
                   canAct={!isSigned}
                   marks={visibleFindings.filter((x) => findingClauseId(x) === cl.id && !!x.f.clauseId)}
@@ -667,10 +644,12 @@ function ClauseBlock({
   directEdit,
   readOnly,
   onPropose,
-  onComment,
+  onCommentClause,
   onAsk,
   onResolve,
-  onCounter,
+  onCommentProposal,
+  decider,
+  deciderName,
   onFinding,
   canAct,
   marks,
@@ -693,10 +672,13 @@ function ClauseBlock({
   directEdit: boolean
   readOnly: boolean
   onPropose: () => void
-  onComment: () => void
+  onCommentClause: (text: string) => void
   onAsk: () => void
-  onResolve: (id: string, d: 'accepted' | 'rejected' | 'withdrawn') => void
-  onCounter: (id: string) => void
+  onResolve: (id: string, d: 'accepted' | 'rejected' | 'withdrawn', finalText?: string) => void
+  onCommentProposal: (id: string, text: string) => void
+  /** Czy oglądający decyduje o sugestiach (pierwsza strona). */
+  decider: boolean
+  deciderName: string
   onFinding: (id: string, d: 'accept' | 'reject' | 'edit' | 'reset', text?: string) => void
   canAct: boolean
   /** Widoczne komentarze z analizy przypięte do tego zapisu. */
@@ -728,6 +710,8 @@ function ClauseBlock({
   const isParties = isPartiesClause(c, index)
   const generatedParties = partiesClauseIsGenerated(c, clause)
   const [showText, setShowText] = useState(false)
+  const [commenting, setCommenting] = useState(false)
+  const [commentText, setCommentText] = useState('')
 
   return (
     <section id={`c-${clause.id}`} className={cx('relative scroll-mt-24 px-5 py-5 transition sm:px-10', selected || hoverWhole ? 'bg-brand-50/60' : 'hover:bg-white/60', hoverWhole && 'shadow-[inset_3px_0_0_0_rgba(15,23,42,0.5)]', marginMode && 'lg:pr-5')} aria-labelledby={`t-${clause.id}`}>
@@ -808,7 +792,7 @@ function ClauseBlock({
                 {directEdit ? 'Edytuj zapis' : 'Zaproponuj zmianę'}
               </Button>
               {!directEdit && (
-                <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={onComment}>
+                <Button size="sm" variant="secondary" icon={<MessageSquare className="size-3.5" />} onClick={() => setCommenting(true)}>
                   Skomentuj
                 </Button>
               )}
@@ -821,12 +805,36 @@ function ClauseBlock({
           {open.length > 0 && (
             <div className="mt-3 space-y-2">
               {open.map((p) => (
-                <ProposalCard key={p.id} p={p} viewer={viewer} canAct={canAct} onResolve={(d) => onResolve(p.id, d)} onCounter={() => onCounter(p.id)} />
+                <ProposalCard key={p.id} p={p} viewer={viewer} decider={decider} deciderName={deciderName} canAct={canAct} onDecide={(d, t) => onResolve(p.id, d, t)} onWithdraw={() => onResolve(p.id, 'withdrawn')} onComment={(t) => onCommentProposal(p.id, t)} />
               ))}
             </div>
           )}
 
-          {selected && comments.length > 0 && (
+          {commenting && (
+            <form
+              className="animate-fade-up mt-3 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!commentText.trim()) return
+                onCommentClause(commentText.trim())
+                setCommentText('')
+                setCommenting(false)
+              }}
+            >
+              <label htmlFor={`cc-${clause.id}`} className="sr-only">
+                Komentarz do zapisu
+              </label>
+              <input id={`cc-${clause.id}`} autoFocus value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Komentarz do tego zapisu – zobaczy go druga strona" className="h-10 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
+              <Button type="submit" size="sm" variant="primary" disabled={!commentText.trim()}>
+                Wyślij
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setCommenting(false)}>
+                Anuluj
+              </Button>
+            </form>
+          )}
+
+          {comments.length > 0 && (
             <ul className="mt-3 space-y-2">
               {comments.map((cm) => (
                 <li key={cm.id} className="flex gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-slate-200">
@@ -1147,243 +1155,65 @@ function AnalysisPanel({ c, numbered, filter, onFilter, onDecide, onShow, onOrde
   )
 }
 
-function NegotiationPanel({
-  c,
-  viewer,
-  viewerName,
-  isOwner,
-  hasAccount,
-  selected,
-  onClearSelected,
-  onSelect,
-  onResolve,
-  onCounter,
-  onInvite,
-  guard,
-  signPath,
-}: {
-  c: Contract
-  viewer: PartyId
-  viewerName: string
-  isOwner: boolean
-  hasAccount: boolean
-  selected: Clause | null
-  onClearSelected: () => void
-  onSelect: (id: string) => void
-  onResolve: (id: string, d: 'accepted' | 'rejected' | 'withdrawn') => void
-  onCounter: (id: string) => void
-  onInvite: () => void
-  guard: (reason: string, fn: () => void) => void
-  signPath: string
-}) {
+/**
+ * Pasek uzgodnień nad dokumentem: ile sugestii czeka na decyzję pierwszej strony
+ * i akceptacja aktualnej wersji przez obie strony (warunek przejścia do podpisu).
+ */
+function AgreementBar({ c, viewer, viewerName, guard, signPath, onJump }: { c: Contract; viewer: PartyId; viewerName: string; guard: (reason: string, fn: () => void) => void; signPath: string; onJump: (clauseId: string) => void }) {
   const { updateContract } = useStore()
   const toast = useToast()
-  const [text, setText] = useState('')
-  const [showAll, setShowAll] = useState(false)
   const version = c.versions.length
   const open = c.proposals.filter((p) => p.status === 'open')
-  const accepted = c.proposals.filter((p) => p.status === 'accepted')
-  const rejected = c.proposals.filter((p) => p.status === 'rejected' || p.status === 'withdrawn')
-  const isSigned = c.stage === 'signed'
-
-  if (c.stage === 'draft' && isOwner) {
-    return (
-      <EmptyState
-        icon={<Users className="size-6" />}
-        title="Negocjacje jeszcze się nie rozpoczęły"
-        action={
-          <Button variant="accent" icon={<Send className="size-4" />} onClick={onInvite}>
-            Zaproś drugą stronę do negocjacji
-          </Button>
-        }
-      >
-        Gdy wyślesz projekt, tutaj zobaczycie wspólne komentarze, propozycje zmian i status uzgodnień.
-      </EmptyState>
-    )
-  }
-
   const meAccepted = c.acceptedBy[viewer]?.version === version
-  const proposals = [...c.proposals].reverse().filter((p) => showAll || p.status === 'open' || (selected && p.clauseId === selected.id))
-  const comments = c.comments.filter((cm) => !selected || cm.clauseId === selected.id || cm.clauseId === null)
-
-  const send = () => {
-    if (!text.trim()) return
-    guard('Aby komentować, załóż bezpłatne konto.', () => {
-      updateContract(c.id, (x) => addComment(x, { clauseId: selected?.id ?? null, text: text.trim(), partyId: viewer, authorName: viewerName }))
-      setText('')
-      toast('Komentarz jest widoczny dla obu stron')
-    })
-  }
-
+  const otherId: PartyId = viewer === 'A' ? 'B' : 'A'
+  const otherAccepted = c.acceptedBy[otherId]?.version === version
+  const isSigned = c.stage === 'signed'
+  const owner = c.parties.find((p) => p.id === c.ownerPartyId)
+  const decider = viewer === c.ownerPartyId
   return (
-    <div className="space-y-4">
-      <p className="flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-2 text-xs font-medium text-violet-900">
-        <Users className="size-3.5" aria-hidden /> Wspólny obszar – widoczny dla obu stron
-      </p>
-
-      <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-        <h3 className="font-semibold text-ink-900">Stan uzgodnień</h3>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-emerald-50 px-2 py-2">
-            <p className="text-lg font-semibold text-emerald-900">{accepted.length}</p>
-            <p className="text-[11px] text-emerald-800">uzgodnione</p>
-          </div>
-          <div className="rounded-xl bg-amber-50 px-2 py-2">
-            <p className="text-lg font-semibold text-amber-900">{open.length}</p>
-            <p className="text-[11px] text-amber-800">otwarte</p>
-          </div>
-          <div className="rounded-xl bg-slate-100 px-2 py-2">
-            <p className="text-lg font-semibold text-slate-800">{rejected.length}</p>
-            <p className="text-[11px] text-slate-600">odrzucone</p>
-          </div>
-        </div>
-        {(accepted.length > 0 || open.length > 0) && (
-          <div className="mt-3 space-y-2 text-sm">
-            {open.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Otwarte kwestie</p>
-                <ul className="mt-1 space-y-0.5">
-                  {open.map((p) => (
-                    <li key={p.id}>
-                      <button type="button" className="text-left text-ink-900 hover:text-brand-700 hover:underline" onClick={() => onSelect(p.clauseId)}>
-                        • {c.clauses.find((x) => x.id === p.clauseId)?.title ?? 'Zapis'} <span className="text-slate-500">({p.authorPartyId === viewer ? 'Twoja propozycja' : p.authorName})</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {accepted.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Uzgodnione</p>
-                <ul className="mt-1 space-y-0.5 text-slate-700">
-                  {accepted.map((p) => (
-                    <li key={p.id}>✓ {c.clauses.find((x) => x.id === p.clauseId)?.title ?? 'Zapis'}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-4 border-t border-slate-100 pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Akceptacja wersji {version}</p>
-          <ul className="mt-2 space-y-1.5">
-            {c.parties.map((p) => {
-              const acc = c.acceptedBy[p.id]
-              const ok = acc?.version === version
-              return (
-                <li key={p.id} className="flex items-center gap-2 text-sm">
-                  {ok ? <CheckCircle2 className="size-4 text-brand-600" aria-hidden /> : <Clock className="size-4 text-slate-400" aria-hidden />}
-                  <span className="font-medium text-ink-900">{p.id === viewer ? 'Ty' : p.name}</span>
-                  <span className="text-slate-500">{ok ? `zaakceptowano ${formatRelative(acc!.at)}` : 'oczekuje'}</span>
-                </li>
-              )
-            })}
-          </ul>
-          {c.stage === 'agreed' || isSigned ? (
-            <ButtonLink to={signPath} variant="accent" className="mt-3 w-full" icon={<FileSignature className="size-4" />}>
-              {isSigned ? 'Zobacz podpisy' : 'Przejdź do podpisu'}
-            </ButtonLink>
-          ) : meAccepted ? (
-            <Button variant="ghost" size="sm" className="mt-3" onClick={() => updateContract(c.id, (x) => revokeAcceptance(x, viewer, viewerName))}>
-              Wycofaj moją akceptację
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="primary"
-                className="mt-3 w-full"
-                disabled={open.length > 0}
-                icon={<Check className="size-4" />}
-                onClick={() =>
-                  guard('Aby zaakceptować umowę, załóż bezpłatne konto.', () => {
-                    updateContract(c.id, (x) => acceptCurrentVersion(x, viewer, viewerName))
-                    toast('Zaakceptowano aktualną wersję')
-                  })
-                }
-              >
-                Akceptuję wersję {version}
-              </Button>
-              {open.length > 0 && <p className="mt-1.5 text-xs text-slate-500">Najpierw rozstrzygnijcie otwarte propozycje.</p>}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="font-semibold text-ink-900">Propozycje zmian</h3>
-          <button type="button" className="text-xs font-medium text-brand-700 hover:underline" onClick={() => setShowAll((s) => !s)}>
-            {showAll ? 'Pokaż otwarte' : `Pokaż wszystkie (${c.proposals.length})`}
-          </button>
-        </div>
-        {proposals.length === 0 ? (
-          <p className="rounded-xl bg-white p-4 text-sm text-slate-600 ring-1 ring-slate-200">Brak otwartych propozycji. Wybierz zapis w dokumencie, aby zaproponować zmianę.</p>
-        ) : (
-          <div className="space-y-2">
-            {proposals.map((p) => (
-              <ProposalCard key={p.id} p={p} viewer={viewer} canAct={!isSigned} clause={c.clauses.find((x) => x.id === p.clauseId)} onSelectClause={() => onSelect(p.clauseId)} onResolve={(d) => onResolve(p.id, d)} onCounter={() => onCounter(p.id)} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-2xl bg-white ring-1 ring-slate-200">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-          <h3 className="font-semibold text-ink-900">Komentarze</h3>
-          {selected && (
-            <button type="button" onClick={onClearSelected} className="text-xs font-medium text-brand-700 hover:underline">
-              Pokaż wszystkie
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+      <div className="min-w-0 flex-1 text-sm">
+        {open.length > 0 ? (
+          <p className="text-slate-700">
+            <span className="font-semibold text-amber-800">
+              {open.length} {open.length === 1 ? 'sugestia czeka' : open.length < 5 ? 'sugestie czekają' : 'sugestii czeka'} na decyzję
+            </span>{' '}
+            {decider ? '– przeczytaj komentarze i zdecyduj: akceptuj, edytuj albo odrzuć.' : `– możesz je skomentować; o brzmieniu decyduje ${owner?.name || 'pierwsza strona'}.`}{' '}
+            <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => onJump(open[0].clauseId)}>
+              Przejdź do pierwszej
             </button>
-          )}
-        </div>
-        <ul className="max-h-80 space-y-3 overflow-y-auto p-4">
-          {comments.length === 0 && <li className="text-sm text-slate-500">Brak komentarzy{selected ? ' do tego zapisu' : ''}.</li>}
-          {comments.map((cm) => (
-            <li key={cm.id} className="flex gap-2.5">
-              <Avatar name={cm.authorName} tone={cm.authorPartyId === viewer ? 'brand' : 'violet'} size="sm" />
-              <div className="min-w-0">
-                <p className="text-xs text-slate-500">
-                  <span className="font-semibold text-ink-900">{cm.authorPartyId === viewer ? 'Ty' : cm.authorName}</span> · {formatRelative(cm.createdAt)}
-                </p>
-                {cm.clauseId && (
-                  <button type="button" onClick={() => onSelect(cm.clauseId!)} className="text-xs text-brand-700 hover:underline">
-                    {c.clauses.find((x) => x.id === cm.clauseId)?.title}
-                  </button>
-                )}
-                <p className="mt-0.5 text-sm text-slate-800">{cm.text}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {!isSigned && (
-          <form
-            className="border-t border-slate-100 p-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              send()
-            }}
-          >
-            <label htmlFor="comment-input" className="mb-1 block text-xs text-slate-500">
-              {selected ? `Komentarz do: ${selected.title}` : 'Komentarz do całego dokumentu'}
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="comment-input"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onFocus={() => !hasAccount && guard('Aby komentować, załóż bezpłatne konto.', () => {})}
-                placeholder="Napisz wiadomość do drugiej strony…"
-                className="h-10 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
-              />
-              <Button type="submit" size="sm" className="h-10" disabled={!text.trim()}>
-                Wyślij
-              </Button>
-            </div>
-          </form>
+          </p>
+        ) : (
+          <p className="text-slate-700">
+            <span className="font-semibold text-ink-900">Wersja {version}</span> · {meAccepted ? 'zaakceptowana przez Ciebie' : 'czeka na Twoją akceptację'} · druga strona: {otherAccepted ? 'zaakceptowała' : 'jeszcze nie zaakceptowała'}
+          </p>
         )}
       </div>
+      {c.stage === 'agreed' || isSigned ? (
+        <ButtonLink to={signPath} size="sm" variant="accent" icon={<FileSignature className="size-4" />}>
+          {isSigned ? 'Zobacz podpisy' : 'Przejdź do podpisu'}
+        </ButtonLink>
+      ) : meAccepted ? (
+        <Button size="sm" variant="ghost" onClick={() => updateContract(c.id, (x) => revokeAcceptance(x, viewer, viewerName))}>
+          Wycofaj akceptację
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={open.length > 0}
+          title={open.length > 0 ? 'Najpierw rozstrzygnijcie sugestie' : undefined}
+          icon={<Check className="size-4" />}
+          onClick={() =>
+            guard('Aby zaakceptować umowę, załóż bezpłatne konto.', () => {
+              updateContract(c.id, (x) => acceptCurrentVersion(x, viewer, viewerName))
+              toast('Zaakceptowano aktualną wersję')
+            })
+          }
+        >
+          Akceptuję wersję {version}
+        </Button>
+      )}
     </div>
   )
 }

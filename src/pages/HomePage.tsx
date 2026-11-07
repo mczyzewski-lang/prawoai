@@ -137,7 +137,7 @@ export default function HomePage() {
           <ul className="mt-3 space-y-2">
             {awaiting.map((c) => (
               <li key={c.id}>
-                <Link to={`/umowy/${c.id}?panel=negocjacje`} className="group flex items-center gap-3 rounded-2xl bg-white p-3.5 ring-1 ring-amber-200/70 transition hover:ring-amber-400">
+                <Link to={`/umowy/${c.id}`} className="group flex items-center gap-3 rounded-2xl bg-white p-3.5 ring-1 ring-amber-200/70 transition hover:ring-amber-400">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-ink-900">{c.title}</span>
                     <span className="block truncate text-sm text-slate-600">{c.activity[c.activity.length - 1]?.text}</span>

@@ -381,7 +381,7 @@ export function PrivateAssistant({
           <Button type="submit" variant="primary" aria-label="Wyślij" disabled={!input.trim() || thinking} icon={<ArrowUp className="size-4" />} className="h-11" />
         </form>
         <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-500">
-          <Lock className="size-3" aria-hidden /> {contract.stage === 'draft' ? 'W szkicu zmiany asystenta wchodzą od razu – każdą możesz cofnąć.' : 'Zmiany asystenta trafiają do drugiej strony jako propozycje do akceptacji.'}
+          <Lock className="size-3" aria-hidden /> {contract.stage === 'draft' ? 'W szkicu zmiany asystenta wchodzą od razu – każdą możesz cofnąć.' : 'Zmiany asystenta pojawiają się przy zapisach jako sugestie – druga strona może je skomentować.'}
         </p>
       </div>
     </div>

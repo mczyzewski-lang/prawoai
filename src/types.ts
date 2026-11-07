@@ -40,6 +40,18 @@ export interface Proposal {
   createdAt: string
   resolvedAt?: string
   resolvedByName?: string
+  /** Komentarze stron do sugestii (druga strona komentuje, pierwsza decyduje). */
+  thread?: ProposalComment[]
+  /** Ostateczne brzmienie, jeśli przy akceptacji zostało zmienione („Edytuj”). */
+  finalText?: string
+}
+
+export interface ProposalComment {
+  id: string
+  authorPartyId: PartyId
+  authorName: string
+  text: string
+  createdAt: string
 }
 
 export interface SharedComment {

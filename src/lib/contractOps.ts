@@ -61,22 +61,36 @@ export function submitProposal(
   return log(next, `${p.authorName} zaproponował(a) zmianę: „${clause.title}”`, p.partyId)
 }
 
-export function resolveProposal(c: Contract, proposalId: string, decision: 'accepted' | 'rejected' | 'withdrawn', actor: { partyId: PartyId; name: string }): Contract {
+/**
+ * Rozstrzygnięcie sugestii. O formie decyduje pierwsza strona (właściciel umowy) – akceptuje,
+ * akceptuje po edycji (`finalText`) albo odrzuca. Autor może swoją sugestię wycofać.
+ */
+export function resolveProposal(c: Contract, proposalId: string, decision: 'accepted' | 'rejected' | 'withdrawn', actor: { partyId: PartyId; name: string }, finalText?: string): Contract {
   const prop = c.proposals.find((p) => p.id === proposalId)
   if (!prop || prop.status !== 'open') return c
   if (decision === 'withdrawn' && prop.authorPartyId !== actor.partyId) return c
-  if (decision !== 'withdrawn' && prop.authorPartyId === actor.partyId) return c
-  const resolved: Proposal = { ...prop, status: decision, resolvedAt: nowIso(), resolvedByName: actor.name }
+  if (decision !== 'withdrawn' && actor.partyId !== c.ownerPartyId) return c
+  const edited = decision === 'accepted' && finalText !== undefined && finalText.trim() && finalText.trim() !== prop.newText ? finalText.trim() : undefined
+  const resolved: Proposal = { ...prop, status: decision, resolvedAt: nowIso(), resolvedByName: actor.name, finalText: edited }
   let next: Contract = { ...c, proposals: c.proposals.map((p) => (p.id === proposalId ? resolved : p)) }
   const clause = c.clauses.find((x) => x.id === prop.clauseId)
   const title = clause?.title ?? 'zapis'
   if (decision === 'accepted') {
-    next = { ...next, clauses: next.clauses.map((x) => (x.id === prop.clauseId ? { ...x, text: prop.newText } : x)) }
+    next = { ...next, clauses: next.clauses.map((x) => (x.id === prop.clauseId ? { ...x, text: edited ?? prop.newText } : x)) }
     // Inne otwarte propozycje do tego samego zapisu odnoszą się do nieaktualnego brzmienia – zostają, ale z adnotacją w historii.
-    next = snapshot(next, actor.name, `Przyjęto zmianę: „${title}” (autor: ${prop.authorName})`)
+    next = snapshot(next, actor.name, `${edited ? 'Przyjęto zmianę po edycji' : 'Przyjęto zmianę'}: „${title}” (autor: ${prop.authorName})`)
   }
   const verb = decision === 'accepted' ? 'zaakceptował(a)' : decision === 'rejected' ? 'odrzucił(a)' : 'wycofał(a)'
   return log(next, `${actor.name} ${verb} propozycję: „${title}”`, actor.partyId)
+}
+
+/** Komentarz do sugestii (wątek pod sugestią). */
+export function commentProposal(c: Contract, proposalId: string, cm: { partyId: PartyId; authorName: string; text: string }): Contract {
+  const next: Contract = {
+    ...c,
+    proposals: c.proposals.map((p) => (p.id === proposalId ? { ...p, thread: [...(p.thread ?? []), { id: uid('pc'), authorPartyId: cm.partyId, authorName: cm.authorName, text: cm.text, createdAt: nowIso() }] } : p)),
+  }
+  return log(next, `${cm.authorName} skomentował(a) sugestię`, cm.partyId)
 }
 
 export function addComment(c: Contract, cm: { clauseId: string | null; text: string; partyId: PartyId; authorName: string }): Contract {

@@ -101,7 +101,7 @@ function SignView({ c, viewer, viewerName, canSignFor, backTo }: { c: Contract; 
       </div>
 
       {!ready ? (
-        <EmptyState icon={<FileSignature className="size-6" />} title="Umowa nie jest jeszcze uzgodniona" action={<ButtonLink to={`${backTo}?panel=negocjacje`}>Przejdź do negocjacji</ButtonLink>}>
+        <EmptyState icon={<FileSignature className="size-6" />} title="Umowa nie jest jeszcze uzgodniona" action={<ButtonLink to={backTo}>Wróć do umowy</ButtonLink>}>
           Podpisy można złożyć, gdy obie strony zaakceptują tę samą wersję dokumentu i nie będzie otwartych propozycji.
         </EmptyState>
       ) : (
