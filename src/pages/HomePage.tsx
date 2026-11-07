@@ -33,16 +33,18 @@ export default function HomePage() {
   const { generate, overlay, busy, contacts } = useGenerate()
   const toast = useToast()
   const [chooserOpen, setChooserOpen] = useState(false)
-  const [modeOverride, setModeOverride] = useState<'create' | 'analyze' | null>(null)
-  const autoMode = detectIntent(prompt, attach)
-  const mode = modeOverride ?? autoMode
+  // Tryb wynika z tego, co wpiszesz lub dodasz – bez ręcznego przełączania.
+  const mode = detectIntent(prompt, attach)
   const navigate = useNavigate()
   /** Analiza: wklejona treść albo dodany plik trafia do „Analizuj umowę” (z Twoim opisem jako kontekstem). */
   const analyze = () => {
     const isFile = attach?.kind === 'file'
-    const text = isFile ? attach.text : prompt
+    // „Sprawdź tę umowę, jestem najemcą: <treść>” – pierwsza linia z poleceniem trafia jako kontekst oceny.
+    const [first, ...rest] = prompt.split('\n')
+    const lead = !isFile && ANALYZE_WORDS.test(first) && first.length < 300 && rest.join('\n').trim().length > 0
+    const text = isFile ? attach.text : lead ? rest.join('\n') : prompt
     if (!text.trim()) return
-    sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ text, fileName: isFile ? attach.name : null, context: isFile ? prompt.trim() : '' }))
+    sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ text, fileName: isFile ? attach.name : null, context: isFile ? prompt.trim() : lead ? first.trim() : '' }))
     navigate('/analiza')
   }
   const run = () => (mode === 'analyze' ? analyze() : start(prompt))
@@ -54,7 +56,6 @@ export default function HomePage() {
       const tpl = templateFromText(text, f.name.replace(/\.[^.]+$/, ''), state.profile.ownParty)
       if (!tpl) throw new ExtractError('Nie rozpoznaliśmy zapisów umowy w tym pliku.')
       setAttach({ kind: 'file', name: f.name, template: tpl, text })
-      setModeOverride(null)
       document.getElementById('home-prompt')?.focus()
     } catch (err) {
       toast(err instanceof ExtractError ? err.message : 'Nie udało się odczytać pliku.', 'error')
@@ -154,13 +155,6 @@ export default function HomePage() {
                   <span className="hidden min-w-0 truncate text-xs text-slate-400 sm:inline">Dodaj umowę do sprawdzenia albo wzór</span>
                 )}
                 <span className="flex-1" />
-                <div role="radiogroup" aria-label="Co zrobić" className="hidden shrink-0 rounded-xl bg-slate-100 p-0.5 sm:flex">
-                  {(['create', 'analyze'] as const).map((m) => (
-                    <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setModeOverride(m === autoMode ? null : m)} className={cx('rounded-lg px-2.5 py-1.5 text-xs font-medium transition', mode === m ? 'bg-white text-ink-900 shadow-sm' : 'text-slate-500 hover:text-ink-900')}>
-                      {m === 'create' ? 'Utwórz' : 'Analizuj'}
-                    </button>
-                  ))}
-                </div>
                 <button type="submit" disabled={!canRun || busy} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-40">
                   {mode === 'analyze' ? <FileSearch className="size-4" aria-hidden /> : <Sparkles className="size-4" aria-hidden />} {mode === 'analyze' ? 'Analizuj umowę' : 'Generuj bezpłatnie'}
                 </button>
@@ -170,13 +164,14 @@ export default function HomePage() {
               {mode === 'analyze'
                 ? attach?.kind === 'file'
                   ? `Ocenimy „${attach.name}” z Twojej perspektywy. Chcesz zamiast tego utworzyć nową umowę na jej bazie? Wpisz dane drugiej strony.`
-                  : 'Wygląda na treść umowy – ocenimy ją z Twojej perspektywy.'
+                  : canRun
+                    ? 'Wygląda na treść umowy – ocenimy ją z Twojej perspektywy.'
+                    : 'Wklej treść umowy albo dodaj plik przyciskiem (+) – ocenimy ją z Twojej perspektywy.'
                 : attach?.kind === 'file'
                   ? `Utworzymy nową umowę na bazie „${attach.name}”.`
-                  : 'Wklej treść umowy albo przeciągnij plik, a przeanalizujemy ją zamiast tworzyć nową.'}
-              <button type="button" className="font-semibold text-white underline sm:hidden" onClick={() => setModeOverride(mode === 'create' ? 'analyze' : 'create')}>
-                {mode === 'create' ? 'Analizuj zamiast' : 'Utwórz zamiast'}
-              </button>
+                  : prompt.trim().split(/\s+/).length >= 50
+                    ? 'Utworzymy nową umowę na podstawie wklejonego tekstu.'
+                    : 'Opisz umowę, którą chcesz przygotować – albo wklej treść lub dodaj plik, a ją przeanalizujemy.'}
             </p>
             {chooserOpen && (
               <TemplateChooser
@@ -365,7 +360,9 @@ export function detectIntent(prompt: string, attach: Attach | null): 'create' | 
   const words = prompt.trim().split(/\s+/).filter(Boolean).length
   if (attach?.kind === 'file') return prompt.trim() && CREATE_WORDS.test(prompt) && !ANALYZE_WORDS.test(prompt) ? 'create' : 'analyze'
   if (attach) return 'create'
-  if (words >= 120 || (words >= 50 && CONTRACT_MARKERS.test(prompt))) return 'analyze'
+  // „Przeanalizuj / sprawdź tę umowę …” albo wklejona treść umowy
+  if (ANALYZE_WORDS.test(prompt) && !CREATE_WORDS.test(prompt.split(/\s+/).slice(0, 8).join(' '))) return 'analyze'
+  if (words >= 120 || (words >= 50 && CONTRACT_MARKERS.test(prompt))) return CREATE_WORDS.test(prompt.split(/\s+/).slice(0, 12).join(' ')) ? 'create' : 'analyze'
   return 'create'
 }
 
