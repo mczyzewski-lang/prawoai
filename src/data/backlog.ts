@@ -98,3 +98,47 @@ export const MOATS: Moat[] = [
     ],
   },
 ]
+
+/** Porównanie z rynkiem: co oferuje konkurencyjna platforma usług prawnych dla firm i jak wypada Prawo.ai. */
+export interface MarketRow {
+  area: string
+  /** Co jest u konkurencji (bez nazwy firmy). */
+  theirs: string
+  /** Co jest w Prawo.ai dziś. */
+  ours: string
+  status: BacklogStatus
+  /** Zadanie do backlogu, jeśli czegoś brakuje. */
+  todo?: string
+}
+
+export const MARKET_SUMMARY =
+  'Konkurencja to firma technologiczna świadcząca usługi prawne dla firm (nie kancelaria): prawnik sprawdza umowę przed podpisem, platforma pilnuje terminów i zobowiązań po podpisie. Sprzedaje stałą cenę za sprawę (od 199 zł) i abonamenty (od 299 zł/mies.). Prawo.ai to samoobsługa z AI: umowa z opisu w kilkadziesiąt sekund, analiza w około minutę, negocjacje i podpis z drugą stroną w aplikacji – z prawnikami PRAVNA.pl jako zapleczem.'
+
+export const MARKET: MarketRow[] = [
+  { area: 'Analiza umowy', theirs: 'Analiza z poprawkami weryfikowana przez prawnika; stała cena (199 zł do 3 stron, 1 500 zł do 25 stron, 2 800 zł z negocjacjami); wynik zwykle w 1 dzień roboczy.', ours: 'Analiza AI z Twojej perspektywy w ok. 1 minutę, komentarze przy konkretnych zapisach, gotowe brzmienie, akceptuj/edytuj jednym kliknięciem.', status: 'gotowe', todo: 'Płatny dodatek „Zweryfikuj u prawnika PRAVNA” ze stałą ceną i terminem.' },
+  { area: 'Zakres i cena przed startem', theirs: 'Pisemny zakres, cena i termin akceptowane przed rozpoczęciem pracy; zmiana zakresu = nowa wycena.', ours: 'Funkcje AI bez wyceny; brak zleceń dla prawnika.', status: 'backlog', todo: 'Zamówienie usługi prawnika: zakres, cena i termin do akceptacji w aplikacji, płatność online.' },
+  { area: 'Rejestr umów', theirs: 'Umowa + aneksy, decyzje, terminy i osoba odpowiedzialna w jednym zapisie; eksport danych min. 30 dni po rezygnacji.', ours: 'Moje umowy: statusy, wersje, historia, PDF; Moje wzory.', status: 'w toku', todo: 'Aneksy przy umowie, właściciel umowy, eksport wszystkich danych.' },
+  { area: 'Monitoring terminów po podpisie', theirs: 'Pilnuje okien wypowiedzenia, przedłużeń i obowiązków; przypomina o decyzjach (plan od 299 zł/mies., do 25 umów).', ours: 'Analiza AI wyciąga terminy i płatności, ale nie przypomina o nich.', status: 'backlog', todo: 'Kalendarz terminów z umów i przypomnienia e-mail/SMS (np. „za 30 dni zamyka się okno wypowiedzenia”).' },
+  { area: 'Pamięć decyzji („mózg prawny”)', theirs: 'Wcześniejsze decyzje i zatwierdzone stanowiska wracają przy nowej umowie (np. „45 dni tylko z zaliczką”), prawnik sprawdza, czy pasują.', ours: 'Moje wzory i „Adresy i dane”; decyzje przy uwagach zapisane w historii umowy.', status: 'w toku', todo: '„Moje stanowiska”: zaakceptowane/odrzucone uwagi trafiają do profilu firmy i są uwzględniane w kolejnych analizach.' },
+  { area: 'Zasady dla sprzedaży (playbook)', theirs: 'Zatwierdzone sformułowania i dopuszczalne ustępstwa, granice akceptacji, ścieżka wyjątków (4 500 zł).', ours: 'Brak.', status: 'backlog', todo: 'Playbook firmy: dopuszczalne ustępstwa i klauzule zapasowe; AI ostrzega, gdy umowa wychodzi poza zasady.' },
+  { area: 'Windykacja B2B', theirs: 'Zaległa faktura: analiza umowy i korespondencji, wezwanie do zapłaty, plan spłaty, eskalacja do sądu (wyceniana osobno).', ours: 'Asystent prowadzi rozmowę o długach i rekomenduje prawnika.', status: 'backlog', todo: 'Moduł windykacji: umowa + faktura → wezwanie do zapłaty z AI, przypomnienia, przekazanie do PRAVNA.' },
+  { area: 'Kondycja prawna firmy', theirs: 'Wstępna ocena i audyt: uporządkowanie umów, lista luk według priorytetu, następne zadania.', ours: 'Analiza pojedynczej umowy.', status: 'backlog', todo: 'Przegląd portfela: wgraj kilka umów → raport luk i terminów z priorytetami.' },
+  { area: 'Nowe dokumenty', theirs: 'Przygotowanie przez prawnika: B2B/zlecenie/dzieło 1 500 zł, NDA 700 zł, komplet regulamin + polityka + MSA + DPA 5 500 zł; 38 usług, w tym HR (oferta zatrudnienia, regulamin pracy, ESOP).', ours: '53 wzory sprawdzone przez prawników PRAVNA.pl, umowa z opisu przez AI, kreator, Moje wzory – bez opłat.', status: 'gotowe', todo: 'Rozszerzyć bibliotekę o HR i dokumenty firmowe (regulamin, polityka prywatności, DPA); opcja „przygotuje prawnik”.' },
+  { area: 'Negocjacje z drugą stroną', theirs: 'Wskazówki do negocjacji; prowadzenie negocjacji przez prawnika jako płatna usługa (+1 500 zł).', ours: 'Wspólny dokument przez link bez rejestracji, propozycje zmian, akceptacje, wersje, komentarze, gotowa wiadomość negocjacyjna.', status: 'gotowe' },
+  { area: 'Podpis', theirs: 'Brak informacji o podpisie w ofercie.', ours: 'Podpis na ekranie (palec/mysz, SMS – demo), „Wyślij do podpisu” linkiem, e-mailem lub SMS-em, PDF z podpisami.', status: 'gotowe', todo: 'Podpis z weryfikacją kodem SMS z serwera; integracja z kwalifikowanym podpisem.' },
+  { area: 'Bezpieczeństwo i dane', theirs: 'Dane nie służą do trenowania AI (zobowiązanie w DPA), lista podprocesorów, DPA, polityka eksportu i usuwania.', ours: 'Dane w przeglądarce; analiza przez API OpenAI.', status: 'backlog', todo: 'Strona „Bezpieczeństwo”: brak trenowania na danych, DPA, podprocesorzy, eksport i usunięcie danych.' },
+  { area: 'Oznaczanie pracy AI i prawnika', theirs: 'Wyniki automatyczne są wyraźnie oznaczone; podpisaną opinią jest tylko praca zweryfikowana przez prawnika.', ours: 'Oznaczenie „Ocena wykonana przez model AI” / „analiza podstawowa”.', status: 'w toku', todo: 'Jednolity znak AI vs „Zweryfikowane przez prawnika” w całej aplikacji i w PDF.' },
+  { area: 'Model cenowy', theirs: 'Za sprawę (od 199 zł) lub abonament: Start 299 zł, On Call 900 zł, Retainer 3 500 zł/mies., In-House indywidualnie.', ours: 'Brak cennika.', status: 'backlog', todo: 'Freemium: AI za darmo/limit; płatne – weryfikacja prawnika, monitoring terminów, konto firmowe.' },
+  { area: 'Demo i zaufanie', theirs: 'Wideo demo 3 min, logotypy klientów, zespoły w Warszawie i Sztokholmie.', ours: 'Brak.', status: 'backlog', todo: 'Krótkie demo wideo, logotypy i opinie klientów PRAVNA.' },
+]
+
+/** Czym Prawo.ai różni się od konkurencji. */
+export const DIFFERENCES: { title: string; detail: string }[] = [
+  { title: 'Samoobsługa w minutach zamiast zlecenia na jutro', detail: 'Umowa z opisu w kilkadziesiąt sekund, analiza w około minutę – bez czekania na prawnika i bez płacenia od sprawy.' },
+  { title: 'Prawdziwa kancelaria w zapleczu', detail: 'Konkurencja zaznacza, że nie jest kancelarią podlegającą samorządowi. Za Prawo.ai stoją radcowie prawni i adwokaci PRAVNA.pl – z uprawnieniami do reprezentacji przed sądem.' },
+  { title: 'Negocjacje i podpis z drugą stroną w aplikacji', detail: 'Kontrahent wchodzi przez link, zgłasza propozycje, akceptuje wersję i podpisuje – u konkurencji negocjacje to płatna usługa prawnika.' },
+  { title: 'Ocena z Twojej perspektywy przy każdym zapisie', detail: 'Komentarze przypięte do fragmentów jak w Google Docs, z priorytetem i gotowym brzmieniem do akceptacji jednym kliknięciem.' },
+  { title: 'Asystent, który edytuje umowę', detail: 'Zmiany wprowadzane rozmową, z odwołaniami do paragrafów i cofaniem; dane osób i produktów wstawiane przez @.' },
+  { title: 'Także dla osób prywatnych', detail: 'Konkurencja celuje w firmy (B2B). Prawo.ai obsługuje też sprawy konsumenckie, rodzinne i długi – z asystentem i przejściem do prawnika.' },
+  { title: 'Czego nam brakuje', detail: 'Stałej opieki po podpisie (rejestr, terminy, przypomnienia), pamięci decyzji firmy, płatnej weryfikacji prawnika ze stałą ceną, windykacji, playbooka sprzedaży i strony o bezpieczeństwie danych – to trafia do backlogu powyżej.' },
+]
