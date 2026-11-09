@@ -6,7 +6,7 @@ import { Button, EmptyState, Modal, TextArea, TextField } from '../ui'
 import { useToast } from '../Toast'
 import { getAiStatus } from '../../lib/aiAnalysis'
 import { cx, formatDate, uid } from '../../lib/utils'
-import { daysUntil, downloadIcs, extractDeadlinesAi, extractDeadlinesRules, KIND_LABEL, mergeDeadlines, referenceDate, relativeLabel, remindFor } from '../../lib/deadlines'
+import { daysUntil, downloadIcs, iPay, extractDeadlinesAi, extractDeadlinesRules, KIND_LABEL, mergeDeadlines, referenceDate, relativeLabel, remindFor } from '../../lib/deadlines'
 
 export const KIND_ICON: Record<DeadlineKind, typeof Receipt> = {
   płatność: Receipt,
@@ -216,7 +216,7 @@ export function DeadlinesPanel({ c, onChange, onOpenClause }: { c: Contract; onC
               onEdit={() => setEdit(d)}
               onDelete={() => onChange((old) => (old ?? []).filter((x) => x.id !== d.id))}
               onOpenClause={d.clauseId ? () => onOpenClause(d.clauseId!) : undefined}
-              collectHref={`/windykacja/nowa?umowa=${c.id}&termin=${d.id}`}
+              collectHref={iPay(c, d) ? undefined : `/windykacja/nowa?umowa=${c.id}&termin=${d.id}`}
             />
           ))}
         </ul>

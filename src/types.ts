@@ -250,6 +250,8 @@ export interface Deadline {
   /** Podstawa w umowie (cytat lub opis). */
   basis?: string
   clauseId?: string
+  /** Kto płaci (dla płatności) – rola z umowy, np. „Zleceniodawca”. */
+  payerRole?: string
   /** Przypomnienia: ile dni przed terminem. */
   remind: number[]
   done?: boolean

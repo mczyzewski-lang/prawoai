@@ -4,7 +4,8 @@
 // • w trybie produkcyjnym serwuje też zbudowaną aplikację z dist/
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { randomInt } from 'node:crypto'
 import { extname, join, normalize, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -303,6 +304,112 @@ async function callModel(payload, effort, onText) {
   return { model: data.model ?? payload.model, result: JSON.parse(text), usage: u ?? null }
 }
 
+// ——— Waitlista (zapisy przed startem, kody SMS, polecenia) ———
+// Zapisy w pliku JSON (na Railway podłącz wolumen i ustaw WAITLIST_FILE, inaczej plik znika przy wdrożeniu).
+const WAITLIST_FILE = process.env.WAITLIST_FILE || join(ROOT, 'data', 'waitlist.json')
+const WAITLIST_LAUNCH = process.env.WAITLIST_LAUNCH || '2026-12-01T10:00:00+01:00'
+/** Bez dostawcy SMS (SMSAPI_TOKEN) działa tryb demo: kod wraca w odpowiedzi i pokazuje się na ekranie. */
+const SMS_DEMO = !process.env.SMSAPI_TOKEN
+let waitlist = []
+try {
+  if (existsSync(WAITLIST_FILE)) waitlist = JSON.parse(readFileSync(WAITLIST_FILE, 'utf8'))
+} catch (e) {
+  console.error('[waitlist] nie udało się wczytać pliku', e.message)
+}
+function saveWaitlist() {
+  try {
+    mkdirSync(dirname(WAITLIST_FILE), { recursive: true })
+    writeFileSync(WAITLIST_FILE, JSON.stringify(waitlist, null, 1))
+  } catch (e) {
+    console.error('[waitlist] zapis nieudany', e.message)
+  }
+}
+const smsCodes = new Map() // phone -> { code, exp, tries, verified }
+const codeLimited = makeLimiter(Number(process.env.WAITLIST_CODES_PER_HOUR || 8))
+const normPhone = (p) => String(p ?? '').replace(/[^\d+]/g, '')
+const validPhone = (p) => (/^\+48\d{9}$/.test(p) ? true : /^\+(?!48)\d{7,15}$/.test(p))
+const refOf = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('')
+const firstName = (n) => String(n ?? '').trim().split(/\s+/)[0] ?? ''
+function validNip(nip) {
+  const d = String(nip ?? '').replace(/\D/g, '')
+  if (d.length !== 10) return false
+  const w = [6, 5, 7, 2, 3, 4, 5, 6, 7]
+  const sum = w.reduce((acc, x, i) => acc + x * Number(d[i]), 0) % 11
+  return sum !== 10 && sum === Number(d[9])
+}
+function waitlistPublic(entry, origin) {
+  const referrals = waitlist.filter((x) => x.ref === entry.refCode).length
+  return {
+    firstName: firstName(entry.name),
+    refCode: entry.refCode,
+    position: waitlist.findIndex((x) => x.id === entry.id) + 1,
+    referrals,
+    // naliczane po starcie: każda zaproszona osoba, która zaloguje się w 30 dni od startu = +1 miesiąc (max 18)
+    potentialMonths: Math.min(18, referrals),
+    link: `${origin}/waitlist?ref=${entry.refCode}`,
+  }
+}
+function smsText(entry, origin) {
+  return `Prawo.ai: Dziękujemy, ${firstName(entry.name)}! Masz 1 miesiąc Pro gratis (290 zł). Za każdą zaproszoną osobę, która zapisze się i zaloguje w 30 dni od startu, dostaniesz kolejny miesiąc (do 18). Twój link: ${origin}/waitlist?ref=${entry.refCode}`
+}
+const originOf = (req) => process.env.PUBLIC_URL || `${req.headers['x-forwarded-proto'] ?? 'http'}://${req.headers.host}`
+
+async function handleWaitlist(req, res, url) {
+  if (url === '/api/waitlist/info' && req.method === 'GET') return send(res, 200, { launchAt: WAITLIST_LAUNCH, count: waitlist.length, smsDemo: SMS_DEMO }, { 'Cache-Control': 'no-store' })
+  if (url.startsWith('/api/waitlist/ref/') && req.method === 'GET') {
+    const code = decodeURIComponent(url.split('/').pop() ?? '').toUpperCase()
+    const entry = waitlist.find((x) => x.refCode === code)
+    if (!entry) return send(res, 404, { error: 'Nie znaleziono zapisu.' })
+    return send(res, 200, { ...waitlistPublic(entry, originOf(req)), sms: smsText(entry, originOf(req)), launchAt: WAITLIST_LAUNCH }, { 'Cache-Control': 'no-store' })
+  }
+  if (url === '/api/waitlist/code' && req.method === 'POST') {
+    if (codeLimited(req)) return send(res, 429, { error: 'Za dużo prób. Spróbuj za godzinę.' })
+    const { phone } = await readJson(req, 10_000)
+    const p = normPhone(phone)
+    if (!validPhone(p)) return send(res, 400, { error: 'Podaj poprawny numer telefonu.' })
+    const existing = waitlist.find((x) => x.phone === p)
+    if (existing) return send(res, 409, { error: 'Ten numer jest już na liście.', refCode: existing.refCode })
+    const code = String(randomInt(100000, 1000000))
+    smsCodes.set(p, { code, exp: Date.now() + 10 * 60_000, tries: 0, verified: false })
+    console.log(`[waitlist] kod SMS ${SMS_DEMO ? '(demo) ' : ''}dla ${p.slice(0, -4)}****`)
+    return send(res, 200, SMS_DEMO ? { sent: true, demo: true, code } : { sent: true })
+  }
+  if (url === '/api/waitlist/verify' && req.method === 'POST') {
+    const { phone, code } = await readJson(req, 10_000)
+    const p = normPhone(phone)
+    const rec = smsCodes.get(p)
+    if (!rec || rec.exp < Date.now()) return send(res, 400, { error: 'Kod wygasł – wyślij nowy.' })
+    rec.tries++
+    if (rec.tries > 5) return send(res, 429, { error: 'Za dużo prób – wyślij nowy kod.' })
+    if (String(code ?? '').trim() !== rec.code) return send(res, 400, { error: 'Nieprawidłowy kod.' })
+    rec.verified = true
+    return send(res, 200, { ok: true })
+  }
+  if (url === '/api/waitlist/join' && req.method === 'POST') {
+    const b = await readJson(req, 20_000)
+    const p = normPhone(b.phone)
+    const rec = smsCodes.get(p)
+    if (!rec?.verified) return send(res, 400, { error: 'Najpierw potwierdź numer kodem SMS.' })
+    const name = String(b.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)
+    if (name.length < 3) return send(res, 400, { error: 'Podaj imię i nazwisko.' })
+    if (!b.consent) return send(res, 400, { error: 'Potrzebna jest zgoda na kontakt.' })
+    if (b.business && !validNip(b.nip)) return send(res, 400, { error: 'Nieprawidłowy NIP.' })
+    let entry = waitlist.find((x) => x.phone === p)
+    if (!entry) {
+      const ref = String(b.ref ?? '').toUpperCase()
+      entry = { id: refOf() + Date.now().toString(36), refCode: refOf(), name, phone: p, business: !!b.business, nip: b.business ? String(b.nip).replace(/\D/g, '') : '', ref: waitlist.some((x) => x.refCode === ref) ? ref : '', consentAt: new Date().toISOString(), createdAt: new Date().toISOString() }
+      while (waitlist.some((x) => x.refCode === entry.refCode)) entry.refCode = refOf()
+      waitlist.push(entry)
+      saveWaitlist()
+      console.log(`[waitlist] nowy zapis #${waitlist.length}${entry.ref ? ` (polecenie ${entry.ref})` : ''}`)
+    }
+    smsCodes.delete(p)
+    // Docelowo: SMS z linkiem do zaproszeń (SMSAPI). W demo zwracamy treść do podglądu.
+    return send(res, 200, { ...waitlistPublic(entry, originOf(req)), sms: smsText(entry, originOf(req)), smsDemo: SMS_DEMO })
+  }
+  return false
+}
+
 // ——— Asystent prawny (rozmowa o sprawie użytkownika) ———
 const LEGAL_CHAT_PROMPT = `Jesteś asystentem Prawo.ai, który pomaga osobom i małym firmom w Polsce uporządkować sprawę prawną i zaplanować kolejne kroki. Nie jesteś prawnikiem i nie udzielasz porady prawnej – pomagasz zrozumieć sytuację, zebrać fakty, przygotować dokumenty i ocenić, czy warto iść do prawnika.
 
@@ -357,6 +464,7 @@ Zasady:
 - Płatności cykliczne: podaj najbliższe 3 wystąpienia od dziś (today).
 - Terminy zależne od innych zdarzeń (np. „7 dni od odbioru”, „30 dni od doręczenia faktury”) zwróć z date = "" – użytkownik uzupełni datę.
 - title: krótko i konkretnie, po polsku (np. „Zapłata 40% wynagrodzenia (17 736 zł)”, „Ostatni dzień na wypowiedzenie najmu”).
+- payerRole: dla płatności – rola strony, która płaci, dokładnie jak w umowie (np. „Zleceniodawca”, „Najemca”); dla innych terminów pusty tekst.
 - basis: krótki cytat lub opis podstawy w umowie. clauseIndex: numer zapisu z nawiasu kwadratowego (-1, gdy dotyczy całej umowy).
 - Nie wymyślaj terminów, których nie ma w umowie. Jeśli nie ma żadnych – zwróć pustą listę.`
 
@@ -370,7 +478,7 @@ const DEADLINES_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'kind', 'date', 'approximate', 'basis', 'clauseIndex'],
+        required: ['title', 'kind', 'date', 'approximate', 'basis', 'clauseIndex', 'payerRole'],
         properties: {
           title: { type: 'string' },
           kind: { type: 'string', enum: ['płatność', 'wypowiedzenie', 'przedłużenie', 'realizacja', 'odbiór', 'gwarancja', 'inne'] },
@@ -378,6 +486,7 @@ const DEADLINES_SCHEMA = {
           approximate: { type: 'boolean' },
           basis: { type: 'string' },
           clauseIndex: { type: 'integer' },
+          payerRole: { type: 'string' },
         },
       },
     },
@@ -642,6 +751,10 @@ createServer(async (req, res) => {
         res.end()
       }
       return
+    }
+    if (req.url?.startsWith('/api/waitlist/')) {
+      const handled = await handleWaitlist(req, res, req.url.split('?')[0])
+      if (handled !== false) return
     }
     if (req.url === '/api/deadlines' && req.method === 'POST') {
       if (!API_KEY) return send(res, 503, { error: 'Odczyt terminów przez AI nie jest skonfigurowany.', code: 'not_configured' })

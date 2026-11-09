@@ -132,7 +132,8 @@ export async function extractDeadlinesAi(c: Contract): Promise<Deadline[]> {
   })
   const data = await r.json().catch(() => null)
   if (!r.ok || !data?.result) throw new Error(data?.error ?? 'Nie udało się odczytać terminów.')
-  return (data.result.deadlines as { title: string; kind: DeadlineKind; date: string; approximate: boolean; basis: string; clauseIndex: number }[]).map((d) => ({
+  return (data.result.deadlines as { title: string; kind: DeadlineKind; date: string; approximate: boolean; basis: string; clauseIndex: number; payerRole?: string }[]).map((d) => ({
+    payerRole: d.payerRole || undefined,
     id: uid('dl'),
     title: d.title,
     kind: d.kind,
@@ -205,4 +206,22 @@ export function downloadIcs(items: DeadlineRef[], name: string) {
   a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+
+/** Role stron, które zwykle płacą (gdy umowa nie mówi wprost). */
+const PAYER_ROLES = /zleceniodawc|zamawiaj|najemc|dzierżawc|kupuj|nabywc|pożyczkobiorc|klient|usługobiorc|licencjobiorc|pracodawc|inwestor/i
+
+/** Czy to Ty płacisz w tym terminie płatności – wtedy nie proponujemy windykacji. */
+export function iPay(c: Contract, d: Deadline): boolean {
+  if (d.kind !== 'płatność') return false
+  const me = c.parties.find((p) => p.id === c.ownerPartyId)
+  const other = c.parties.find((p) => p.id !== c.ownerPartyId)
+  const norm = (x = '') => x.toLowerCase().trim()
+  if (d.payerRole) {
+    if (me && norm(d.payerRole).includes(norm(me.role)) || (me && norm(me.role).includes(norm(d.payerRole)))) return true
+    if (other && (norm(d.payerRole).includes(norm(other.role)) || norm(other.role).includes(norm(d.payerRole)))) return false
+  }
+  const meP = PAYER_ROLES.test(me?.role ?? '')
+  const otherP = PAYER_ROLES.test(other?.role ?? '')
+  return meP && !otherP
 }

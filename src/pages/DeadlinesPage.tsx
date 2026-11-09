@@ -4,7 +4,7 @@ import { Bell, BellOff, CalendarPlus, ChevronLeft, ChevronRight, Hourglass } fro
 import { useStore } from '../store/AppStore'
 import { Button, EmptyState, PageHeader } from '../components/ui'
 import { DeadlineRow, urgency } from '../components/deadlines/DeadlineParts'
-import { allDeadlines, downloadIcs, fromYmd, toYmd, todayYmd, daysUntil, type DeadlineRef } from '../lib/deadlines'
+import { allDeadlines, downloadIcs, iPay, fromYmd, toYmd, todayYmd, daysUntil, type DeadlineRef } from '../lib/deadlines'
 import { notificationsState, requestNotifications } from '../lib/reminders'
 import { cx } from '../lib/utils'
 
@@ -139,7 +139,7 @@ export default function DeadlinesPage() {
                   </h2>
                   <ul className="divide-y divide-slate-100">
                     {g.items.map((r) => (
-                      <DeadlineRow key={r.d.id} d={r.d} contractTitle={r.c.title} href={`/umowy/${r.c.id}?panel=terminy`} onToggle={() => toggle(r)} collectHref={`/windykacja/nowa?umowa=${r.c.id}&termin=${r.d.id}`} />
+                      <DeadlineRow key={r.d.id} d={r.d} contractTitle={r.c.title} href={`/umowy/${r.c.id}?panel=terminy`} onToggle={() => toggle(r)} collectHref={iPay(r.c, r.d) ? undefined : `/windykacja/nowa?umowa=${r.c.id}&termin=${r.d.id}`} />
                     ))}
                   </ul>
                 </section>

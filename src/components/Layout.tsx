@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Banknote, BellRing, BookUser, CalendarClock, FileSearch, FolderOpen, Layers, X, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
+import { Banknote, BookUser, CalendarClock, FileSearch, FolderOpen, Layers, Home, LayoutTemplate, MessagesSquare, RotateCcw, ShieldCheck, UserCog } from 'lucide-react'
 import { ProfileModal } from './ProfileModal'
 import { Wordmark } from './BrandSymbol'
 import { useStore } from '../store/AppStore'
@@ -8,7 +8,8 @@ import { Alert, Avatar, Button, Modal } from './ui'
 import { cx } from '../lib/utils'
 import { useToast } from './Toast'
 import { useReminders } from '../lib/reminders'
-import { allDeadlines, daysUntil, relativeLabel } from '../lib/deadlines'
+import { NotificationBell } from './Notifications'
+import { allDeadlines, daysUntil } from '../lib/deadlines'
 
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return <Wordmark light={light} className={cx('text-[22px]', className)} />
@@ -140,7 +141,8 @@ function ProfileMenu() {
 
 export function AppLayout() {
   const { state, loadError, dismissLoadError, saveError } = useStore()
-  const reminders = useReminders(state.contracts)
+  // Przypomnienia: powiadomienia przeglądarki; w aplikacji – dzwonek „Powiadomienia”.
+  useReminders(state.contracts)
   const dueSoon = allDeadlines(state.contracts).filter((r) => !r.d.done && r.d.date && daysUntil(r.d.date) <= 7).length
   const location = useLocation()
   useEffect(() => {
@@ -169,7 +171,8 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto md:ml-0">
+          <div className="ml-auto flex items-center gap-1 md:ml-0">
+            <NotificationBell />
             <ProfileMenu />
           </div>
         </div>
@@ -185,35 +188,6 @@ export function AppLayout() {
           <Alert tone="error" className="mb-4">
             {saveError}
           </Alert>
-        )}
-        {reminders.active.length > 0 && (
-          <section aria-label="Przypomnienia o terminach" className="no-print mb-4 rounded-2xl bg-amber-50 p-3 ring-1 ring-amber-200">
-            <div className="flex items-center gap-2 px-1">
-              <BellRing className="size-4 text-amber-700" aria-hidden />
-              <p className="flex-1 text-sm font-semibold text-amber-950">Przypomnienie o terminach</p>
-              <button type="button" onClick={() => reminders.dismiss()} className="rounded-lg p-1 text-amber-800 hover:bg-amber-100" aria-label="Zamknij przypomnienia">
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-            <ul className="mt-2 space-y-1.5">
-              {reminders.active.slice(0, 4).map((r) => (
-                <li key={r.key}>
-                  <Link to={`/umowy/${r.ref.c.id}?panel=terminy`} onClick={() => reminders.dismiss(r.key)} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-amber-200/70 hover:ring-amber-400">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-ink-900">{r.ref.d.title}</span>
-                      <span className="block truncate text-xs text-slate-500">{r.ref.c.title}</span>
-                    </span>
-                    <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold', r.days < 0 ? 'bg-red-50 text-red-700' : 'bg-amber-100 text-amber-900')}>{relativeLabel(r.ref.d.date)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            {reminders.active.length > 4 && (
-              <Link to="/terminy" onClick={() => reminders.dismiss()} className="mt-2 inline-block px-1 text-sm font-medium text-amber-900 underline">
-                Wszystkie terminy ({reminders.active.length})
-              </Link>
-            )}
-          </section>
         )}
         <Outlet />
       </main>

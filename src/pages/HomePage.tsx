@@ -190,7 +190,7 @@ export default function HomePage() {
                   key={q.label}
                   type="button"
                   onClick={() => {
-                    setPrompt((cur) => (cur.trim() ? `${q.label}: ${cur.trim()}` : `${q.label}: `))
+                    setPrompt((cur) => (cur.trim() ? `${q.fill} – ${cur.trim()}` : `${q.fill} `))
                     requestAnimationFrame(() => {
                       const el = document.getElementById('home-prompt') as HTMLTextAreaElement | null
                       el?.focus()

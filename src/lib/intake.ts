@@ -231,14 +231,15 @@ export function guessTemplate(text: string): string | null {
 }
 
 /** Skróty na stronie głównej. */
-export const QUICK_STARTS: { label: string; prompt: string }[] = [
-  { label: 'Umowa zlecenia', prompt: 'Chcę utworzyć umowę zlecenia.' },
-  { label: 'Umowa o dzieło', prompt: 'Chcę utworzyć umowę o dzieło.' },
-  { label: 'Współpraca B2B', prompt: 'Chcę utworzyć umowę o współpracy B2B.' },
-  { label: 'Najem mieszkania', prompt: 'Chcę utworzyć umowę najmu mieszkania.' },
-  { label: 'NDA', prompt: 'Chcę utworzyć umowę o zachowaniu poufności (NDA).' },
-  { label: 'Pożyczka', prompt: 'Chcę utworzyć umowę pożyczki.' },
-  { label: 'Sprzedaż samochodu', prompt: 'Chcę utworzyć umowę sprzedaży samochodu.' },
+/** Skróty pod polem: `fill` trafia do pola jako początek polecenia, `prompt` – pełne zdanie do czatu. */
+export const QUICK_STARTS: { label: string; prompt: string; fill: string }[] = [
+  { label: 'Umowa zlecenia', prompt: 'Chcę utworzyć umowę zlecenia.', fill: 'Utwórz umowę zlecenia' },
+  { label: 'Umowa o dzieło', prompt: 'Chcę utworzyć umowę o dzieło.', fill: 'Utwórz umowę o dzieło' },
+  { label: 'Współpraca B2B', prompt: 'Chcę utworzyć umowę o współpracy B2B.', fill: 'Utwórz umowę o współpracy B2B' },
+  { label: 'Najem mieszkania', prompt: 'Chcę utworzyć umowę najmu mieszkania.', fill: 'Utwórz umowę najmu mieszkania' },
+  { label: 'NDA', prompt: 'Chcę utworzyć umowę o zachowaniu poufności (NDA).', fill: 'Utwórz umowę o zachowaniu poufności (NDA)' },
+  { label: 'Pożyczka', prompt: 'Chcę utworzyć umowę pożyczki.', fill: 'Utwórz umowę pożyczki' },
+  { label: 'Sprzedaż samochodu', prompt: 'Chcę utworzyć umowę sprzedaży samochodu.', fill: 'Utwórz umowę sprzedaży samochodu' },
 ]
 
 
