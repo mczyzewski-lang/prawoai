@@ -11,7 +11,6 @@ import OtherPage from './pages/OtherPage'
 import DeadlinesPage from './pages/DeadlinesPage'
 import CollectionPage from './pages/CollectionPage'
 import NotificationsPage from './pages/NotificationsPage'
-import WaitlistPage, { WaitlistThanksPage } from './pages/WaitlistPage'
 import AnalyzePage from './pages/AnalyzePage'
 import { OwnerContractPage, SharedContractPage, TeamContractPage } from './pages/ContractPage'
 import { OwnerSignPage, SharedSignPage } from './pages/SignPage'
@@ -47,9 +46,6 @@ export default function App() {
       </Route>
       <Route path="d/:shareId" element={<SharedContractPage />} />
       <Route path="zespol/:token" element={<TeamContractPage />} />
-      <Route path="waitlist" element={<WaitlistPage />} />
-      <Route path="dolacz/:code" element={<WaitlistPage />} />
-      <Route path="waitlist/dziekujemy/:ref" element={<WaitlistThanksPage />} />
       <Route path="d/:shareId/podpis" element={<SharedSignPage />} />
     </Routes>
     <VersionBadge />

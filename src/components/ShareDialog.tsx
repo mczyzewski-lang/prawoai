@@ -6,10 +6,11 @@ import { shareContract } from '../lib/contractOps'
 import { otherParty, sleep } from '../lib/utils'
 import { Alert, Button, Modal, Tabs, TextArea, TextField } from './ui'
 import { cx } from '../lib/utils'
+import { appUrl } from '../lib/base'
 import { useToast } from './Toast'
 
 export function shareUrl(shareId: string) {
-  return `${window.location.origin}/d/${shareId}`
+  return appUrl(`/d/${shareId}`)
 }
 
 export function ShareDialog({ contract, open, onClose }: { contract: Contract; open: boolean; onClose: () => void }) {
@@ -94,7 +95,7 @@ export function ShareDialog({ contract, open, onClose }: { contract: Contract; o
             >
               <Mail className="size-4" aria-hidden /> Wyślij z własnej poczty
             </a>
-            <a href={`/d/${contract.shareId}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-800 ring-1 ring-slate-200 hover:bg-slate-50">
+            <a href={appUrl(`/d/${contract.shareId}`)} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-800 ring-1 ring-slate-200 hover:bg-slate-50">
               <Eye className="size-4" aria-hidden /> Zobacz jako kontrahent <ExternalLink className="ml-auto size-3.5 text-slate-400" aria-hidden />
             </a>
           </div>
@@ -227,7 +228,7 @@ export function SendToSignDialog({ contract, open, onClose, onReviewFirst }: { c
                 <Share2 className="size-4" aria-hidden /> Udostępnij…
               </button>
             )}
-            <a href={signUrl(contract.shareId!).replace(window.location.origin, '')} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-800 ring-1 ring-slate-200 hover:bg-slate-50">
+            <a href={signUrl(contract.shareId!)} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-800 ring-1 ring-slate-200 hover:bg-slate-50">
               <Eye className="size-4" aria-hidden /> Zobacz jako kontrahent <ExternalLink className="ml-auto size-3.5 text-slate-400" aria-hidden />
             </a>
           </div>

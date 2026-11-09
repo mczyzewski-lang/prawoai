@@ -140,3 +140,9 @@ Zapis przed startem: imię i nazwisko, telefon z kierunkowym (dla +48 – 9 cyfr
 - `WAITLIST_FILE` – plik z zapisami (domyślnie `data/waitlist.json`). Na Railway podłącz wolumen i wskaż ścieżkę na nim – bez tego zapisy znikną przy kolejnym wdrożeniu.
 - `SMSAPI_TOKEN` – bez niego działa tryb demo: kod SMS pokazuje się na ekranie, a SMS z linkiem jest tylko podglądem.
 - `PUBLIC_URL` – adres strony w linkach poleceń (domyślnie z nagłówków żądania).
+
+## Adresy
+
+- `/` – waitlista (strona główna), `/dolacz/KOD` – zapis z polecenia, `/waitlist/dziekujemy/KOD` – podziękowanie.
+- `/demoav/…` – cała aplikacja (panel): `/demoav/umowy`, `/demoav/wzory`, linki dla drugiej strony `/demoav/d/…`, dla zespołu `/demoav/zespol/…`. Prefiks ustawia `src/lib/base.ts`.
+- Stare adresy aplikacji (np. `/umowy`, `/d/…`) przekierowują automatycznie pod `/demoav`.

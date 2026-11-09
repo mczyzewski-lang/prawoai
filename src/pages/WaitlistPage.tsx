@@ -430,7 +430,7 @@ export function WaitlistThanksPage() {
       <Shell>
         <div className="mx-auto mt-16 max-w-md text-center">
           <p className="text-lg">Nie znaleźliśmy tego zapisu.</p>
-          <Link to="/waitlist" className="mt-3 inline-block font-semibold text-brand-300 underline">
+          <Link to="/" className="mt-3 inline-block font-semibold text-brand-300 underline">
             Zapisz się na listę
           </Link>
         </div>

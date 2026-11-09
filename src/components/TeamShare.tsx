@@ -5,11 +5,12 @@ import { useStore } from '../store/AppStore'
 import { Avatar, Button, Modal, TextField } from './ui'
 import { useToast } from './Toast'
 import { cx, formatRelative, nowIso, uid } from '../lib/utils'
+import { appUrl } from '../lib/base'
 
 export const ROLE_LABEL: Record<CollaboratorRole, string> = { komentarze: 'Może komentować', podgląd: 'Tylko podgląd' }
 
 export function teamUrl(token: string) {
-  return `${window.location.origin}/zespol/${token}`
+  return appUrl(`/zespol/${token}`)
 }
 
 /** Awatary osób z dostępem (nagłówek umowy). */
