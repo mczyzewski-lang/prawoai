@@ -134,9 +134,9 @@ Szczegóły i lista prac przed użyciem produkcyjnym: [`docs/PRODUKCJA.md`](docs
 
 ## Waitlista (`/waitlist`)
 
-Zapis przed startem: imię i nazwisko, telefon z kierunkowym (dla +48 – 9 cyfr), zgoda, kod SMS, opcjonalnie „Jestem przedsiębiorcą” + NIP (z sumą kontrolną). Po zapisie: strona podziękowania (`/waitlist/dziekujemy/:kod`) z miejscem na wideo 1:1, linkiem do zaproszeń (`/waitlist?ref=KOD`), licznikiem poleceń i treścią SMS-a.
+Zapis przed startem: imię i nazwisko, telefon z kierunkowym (dla +48 – 9 cyfr), zgoda, kod SMS, opcjonalnie „Jestem przedsiębiorcą” + NIP (z sumą kontrolną). Po zapisie: strona podziękowania (`/waitlist/dziekujemy/:kod`) z miejscem na wideo 1:1, linkiem do zaproszeń (`/dolacz/KOD` – 5 znaków), licznikiem poleceń i treścią SMS-a.
 
-- `WAITLIST_LAUNCH` – data startu do odliczania (domyślnie `2026-12-01T10:00:00+01:00`).
+- `WAITLIST_LAUNCH` – data startu do odliczania (domyślnie `2027-02-01T10:00:00+01:00`).
 - `WAITLIST_FILE` – plik z zapisami (domyślnie `data/waitlist.json`). Na Railway podłącz wolumen i wskaż ścieżkę na nim – bez tego zapisy znikną przy kolejnym wdrożeniu.
 - `SMSAPI_TOKEN` – bez niego działa tryb demo: kod SMS pokazuje się na ekranie, a SMS z linkiem jest tylko podglądem.
 - `PUBLIC_URL` – adres strony w linkach poleceń (domyślnie z nagłówków żądania).

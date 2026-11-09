@@ -307,7 +307,7 @@ async function callModel(payload, effort, onText) {
 // ——— Waitlista (zapisy przed startem, kody SMS, polecenia) ———
 // Zapisy w pliku JSON (na Railway podłącz wolumen i ustaw WAITLIST_FILE, inaczej plik znika przy wdrożeniu).
 const WAITLIST_FILE = process.env.WAITLIST_FILE || join(ROOT, 'data', 'waitlist.json')
-const WAITLIST_LAUNCH = process.env.WAITLIST_LAUNCH || '2026-12-01T10:00:00+01:00'
+const WAITLIST_LAUNCH = process.env.WAITLIST_LAUNCH || '2027-02-01T10:00:00+01:00'
 /** Bez dostawcy SMS (SMSAPI_TOKEN) działa tryb demo: kod wraca w odpowiedzi i pokazuje się na ekranie. */
 const SMS_DEMO = !process.env.SMSAPI_TOKEN
 let waitlist = []
@@ -328,7 +328,7 @@ const smsCodes = new Map() // phone -> { code, exp, tries, verified }
 const codeLimited = makeLimiter(Number(process.env.WAITLIST_CODES_PER_HOUR || 8))
 const normPhone = (p) => String(p ?? '').replace(/[^\d+]/g, '')
 const validPhone = (p) => (/^\+48\d{9}$/.test(p) ? true : /^\+(?!48)\d{7,15}$/.test(p))
-const refOf = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('')
+const refOf = () => Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('')
 const firstName = (n) => String(n ?? '').trim().split(/\s+/)[0] ?? ''
 function validNip(nip) {
   const d = String(nip ?? '').replace(/\D/g, '')
@@ -346,11 +346,11 @@ function waitlistPublic(entry, origin) {
     referrals,
     // naliczane po starcie: każda zaproszona osoba, która zaloguje się w 30 dni od startu = +1 miesiąc (max 18)
     potentialMonths: Math.min(18, referrals),
-    link: `${origin}/waitlist?ref=${entry.refCode}`,
+    link: `${origin}/dolacz/${entry.refCode}`,
   }
 }
 function smsText(entry, origin) {
-  return `Prawo.ai: Dziękujemy, ${firstName(entry.name)}! Masz 1 miesiąc Pro gratis (290 zł). Za każdą zaproszoną osobę, która zapisze się i zaloguje w 30 dni od startu, dostaniesz kolejny miesiąc (do 18). Twój link: ${origin}/waitlist?ref=${entry.refCode}`
+  return `Prawo.ai: Dziękujemy, ${firstName(entry.name)}! Masz 1 miesiąc Pro gratis (290 zł). Za każdą zaproszoną osobę, która zapisze się i zaloguje w 30 dni od startu, dostaniesz kolejny miesiąc (do 18). Twój link: ${origin}/dolacz/${entry.refCode}`
 }
 const originOf = (req) => process.env.PUBLIC_URL || `${req.headers['x-forwarded-proto'] ?? 'http'}://${req.headers.host}`
 
@@ -369,7 +369,7 @@ async function handleWaitlist(req, res, url) {
     if (!validPhone(p)) return send(res, 400, { error: 'Podaj poprawny numer telefonu.' })
     const existing = waitlist.find((x) => x.phone === p)
     if (existing) return send(res, 409, { error: 'Ten numer jest już na liście.', refCode: existing.refCode })
-    const code = String(randomInt(100000, 1000000))
+    const code = String(randomInt(1000, 10000))
     smsCodes.set(p, { code, exp: Date.now() + 10 * 60_000, tries: 0, verified: false })
     console.log(`[waitlist] kod SMS ${SMS_DEMO ? '(demo) ' : ''}dla ${p.slice(0, -4)}****`)
     return send(res, 200, SMS_DEMO ? { sent: true, demo: true, code } : { sent: true })

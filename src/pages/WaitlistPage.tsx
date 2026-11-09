@@ -32,7 +32,7 @@ function useInfo() {
     fetch('/api/waitlist/info')
       .then((r) => r.json())
       .then(setInfo)
-      .catch(() => setInfo({ launchAt: '2026-12-01T10:00:00+01:00', count: 0, smsDemo: true }))
+      .catch(() => setInfo({ launchAt: '2027-02-01T10:00:00+01:00', count: 0, smsDemo: true }))
   }, [])
   return info
 }
@@ -63,6 +63,22 @@ function Countdown({ to, compact }: { to: string; compact?: boolean }) {
   )
 }
 
+function MiniCountdown({ to }: { to: string }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const left = Math.max(0, new Date(to).getTime() - now)
+  const d = Math.floor(left / 86_400_000)
+  const hms = [Math.floor(left / 3_600_000) % 24, Math.floor(left / 60_000) % 60, Math.floor(left / 1000) % 60].map((x) => String(x).padStart(2, '0')).join(':')
+  return (
+    <span role="timer" className="rounded-full bg-white/10 px-3 py-1 font-mono text-sm font-semibold tabular-nums text-white ring-1 ring-white/15">
+      {d} d {hms}
+    </span>
+  )
+}
+
 function validNip(nip: string): boolean {
   const d = nip.replace(/\D/g, '')
   if (d.length !== 10) return false
@@ -71,13 +87,46 @@ function validNip(nip: string): boolean {
   return sum !== 10 && sum === Number(d[9])
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+/** „01.02.27” – data startu do nagłówka. */
+export function startLabel(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(-2)}`
+}
+
+/** Krótkie konfetti przy wejściu (bez bibliotek; wyłączone przy ograniczonym ruchu). */
+function Confetti() {
+  const [pieces] = useState(() =>
+    Array.from({ length: 42 }, (_, i) => ({
+      left: Math.random() * 100,
+      delay: Math.random() * 0.4,
+      dur: 1.6 + Math.random() * 1.2,
+      rot: Math.random() * 360,
+      color: ['#2fb8a5', '#5ed4c1', '#fbbf24', '#ffffff', '#a78bfa', '#f472b6'][i % 6],
+      w: 6 + Math.random() * 6,
+    })),
+  )
+  const [show, setShow] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => setShow(false), 3200)
+    return () => clearTimeout(t)
+  }, [])
+  if (!show || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null
+  return (
+    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden>
+      {pieces.map((p, i) => (
+        <span key={i} className="confetti-piece absolute top-0 block rounded-[2px]" style={{ left: `${p.left}%`, width: p.w, height: p.w * 0.45, background: p.color, animationDelay: `${p.delay}s`, animationDuration: `${p.dur}s`, ['--dx' as string]: `${(p.rot % 2 ? 1 : -1) * (20 + p.rot / 6)}px` }} />
+      ))}
+    </div>
+  )
+}
+
+function Shell({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-gradient-to-b from-ink-950 via-ink-900 to-ink-800 text-white">
       <div className="pointer-events-none fixed -right-32 -top-32 size-[28rem] rounded-full bg-brand-500/20 blur-3xl" aria-hidden />
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <Logo light />
-        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80 ring-1 ring-white/15">Lista oczekujących</span>
+        {right ?? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80 ring-1 ring-white/15">Lista oczekujących</span>}
       </header>
       <main className="relative mx-auto max-w-6xl px-4 pb-16 sm:px-6">{children}</main>
     </div>
@@ -89,7 +138,8 @@ export default function WaitlistPage() {
   const info = useInfo()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const ref = (params.get('ref') ?? '').toUpperCase()
+  const { code: refParam } = useParams()
+  const ref = (refParam ?? params.get('ref') ?? '').toUpperCase()
   const [inviter, setInviter] = useState<string | null>(null)
   useEffect(() => {
     if (!ref) return
@@ -107,7 +157,8 @@ export default function WaitlistPage() {
   const [demoCode, setDemoCode] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [verified, setVerified] = useState(false)
-  const [business, setBusiness] = useState(false)
+  const [business, setBusiness] = useState<boolean | null>(null)
+  const [consentOpen, setConsentOpen] = useState(false)
   const [nip, setNip] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -115,7 +166,7 @@ export default function WaitlistPage() {
   const digits = number.replace(/\D/g, '')
   const phoneOk = prefix === '+48' ? digits.length === 9 : digits.length >= 7 && digits.length <= 13
   const phone = `${prefix}${digits}`
-  const nipOk = !business || validNip(nip)
+  const nipOk = business === false || (business === true && validNip(nip))
 
   const post = async (path: string, body: unknown) => {
     const r = await fetch(`/api/waitlist/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -143,7 +194,7 @@ export default function WaitlistPage() {
 
   // Weryfikacja kodu po wpisaniu 6 cyfr
   useEffect(() => {
-    if (code.length !== 6 || verified) return
+    if (code.length !== 4 || verified) return
     let cancelled = false
     post('verify', { phone, code })
       .then(() => !cancelled && (setVerified(true), setError(null)))
@@ -158,7 +209,7 @@ export default function WaitlistPage() {
     setError(null)
     setBusy(true)
     try {
-      const d = await post('join', { name, phone, consent, business, nip, ref })
+      const d = await post('join', { name, phone, consent, business: !!business, nip, ref })
       try {
         sessionStorage.setItem(`prawoai:waitlist:${d.refCode}`, JSON.stringify(d))
       } catch {
@@ -173,7 +224,7 @@ export default function WaitlistPage() {
   }
 
   return (
-    <Shell>
+    <Shell right={info && <span className="rounded-full bg-brand-400/15 px-3 py-1 text-sm font-semibold text-brand-200 ring-1 ring-brand-300/30">Start {startLabel(info.launchAt)}</span>}>
       <div className="grid items-start gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_28rem] lg:pt-12">
         <section>
           {inviter && (
@@ -183,7 +234,10 @@ export default function WaitlistPage() {
           )}
           <h1 className="text-balance text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">Umowy bez stresu. Startujemy już wkrótce.</h1>
           <p className="mt-4 max-w-xl text-lg text-white/75">Tworzenie i analiza umów z AI, negocjacje z drugą stroną, podpis na ekranie i pilnowanie terminów – z prawnikami PRAVNA.pl w zapleczu.</p>
-          <p className="mt-8 text-sm font-medium uppercase tracking-[0.18em] text-white/60">Do startu zostało</p>
+          <p className="mt-8 flex flex-wrap items-baseline gap-x-3 text-sm font-medium uppercase tracking-[0.18em] text-white/60">
+            <span className="text-2xl font-semibold normal-case tracking-tight text-white">Start {info ? startLabel(info.launchAt) : '01.02.27'}</span>
+            Do startu zostało
+          </p>
           <div className="mt-3">{info ? <Countdown to={info.launchAt} /> : <div className="h-24" />}</div>
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">
             {[
@@ -247,12 +301,29 @@ export default function WaitlistPage() {
                 <input id="wl-phone" type="tel" inputMode="numeric" autoComplete="tel-national" value={number} onChange={(e) => setNumber(e.target.value.replace(/[^\d ]/g, '').slice(0, 16))} placeholder={prefix === '+48' ? '600 000 000' : ''} disabled={codeSent} className="h-11 min-w-0 flex-1 rounded-xl border border-slate-300 px-3.5 text-[15px] tracking-wide focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:bg-slate-50" />
               </div>
             </div>
-            {phoneOk && (
-              <label className="animate-fade-up flex items-start gap-2.5 rounded-xl bg-sand-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
-                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} disabled={codeSent} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
-                <span>Zgadzam się na otrzymywanie SMS-ów od Prawo.ai w związku z zapisem na listę oczekujących, w tym kodu weryfikacyjnego i informacji o starcie, oraz na przetwarzanie moich danych w tym celu. Zgodę mogę wycofać w każdej chwili.</span>
-              </label>
-            )}
+            {phoneOk &&
+              (consent && !consentOpen ? (
+                <p className="animate-fade-up flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800 ring-1 ring-brand-100">
+                  <Check className="size-4 shrink-0" aria-hidden /> Zgody zaakceptowane
+                  <button type="button" onClick={() => setConsentOpen(true)} className="ml-auto text-xs font-medium text-brand-700 underline">
+                    Pokaż
+                  </button>
+                </p>
+              ) : (
+                <label className="animate-fade-up flex items-start gap-2.5 rounded-xl bg-sand-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={consent}
+                    onChange={(e) => {
+                      setConsent(e.target.checked)
+                      if (e.target.checked) setConsentOpen(false)
+                    }}
+                    disabled={codeSent}
+                    className="mt-0.5 size-4 shrink-0 accent-brand-600"
+                  />
+                  <span>Akceptuję regulamin i zgadzam się na otrzymywanie SMS-ów od Prawo.ai w związku z zapisem na listę oczekujących, w tym kodu weryfikacyjnego i informacji o starcie, oraz na przetwarzanie moich danych w tym celu. Zgodę mogę wycofać w każdej chwili.</span>
+                </label>
+              ))}
 
             {!codeSent ? (
               <Button type="submit" variant="accent" className="w-full" size="lg" disabled={name.trim().length < 3 || !phoneOk || !consent || busy} icon={busy ? <Loader2 className="size-4 animate-spin" /> : <MessageSquare className="size-4" />}>
@@ -260,34 +331,37 @@ export default function WaitlistPage() {
               </Button>
             ) : (
               <div className="animate-fade-up space-y-3">
-                <div>
-                  <label htmlFor="wl-code" className="mb-1.5 block text-sm font-medium text-slate-800">
-                    Kod z SMS-a wysłany na {prefix} {number}
-                  </label>
-                  <input id="wl-code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={verified} placeholder="••••••" className={cx('h-12 w-full rounded-xl border px-3.5 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-4', verified ? 'border-brand-400 bg-brand-50 ring-brand-100' : 'border-slate-300 focus:border-brand-500 focus:ring-brand-100')} />
-                  {demoCode && !verified && <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 ring-1 ring-amber-200">Wersja demo – SMS nie jest jeszcze wysyłany. Twój kod: <span className="font-mono font-semibold">{demoCode}</span></p>}
-                  {verified ? (
-                    <p className="mt-1.5 flex items-center gap-1 text-sm font-medium text-brand-700">
-                      <Check className="size-4" aria-hidden /> Numer potwierdzony
-                    </p>
-                  ) : (
+                {verified ? (
+                  <p className="flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm font-medium text-brand-800 ring-1 ring-brand-100">
+                    <Check className="size-4" aria-hidden /> Kod potwierdzony
+                  </p>
+                ) : (
+                  <div>
+                    <label htmlFor="wl-code" className="mb-1.5 block text-sm font-medium text-slate-800">
+                      Kod z SMS-a wysłany na {prefix} {number}
+                    </label>
+                    <input id="wl-code" inputMode="numeric" autoComplete="one-time-code" autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="••••" className="h-12 w-full rounded-xl border border-slate-300 px-3.5 text-center text-2xl tracking-[0.6em] focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100" />
+                    {demoCode && <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 ring-1 ring-amber-200">Wersja demo – SMS nie jest jeszcze wysyłany. Twój kod: <span className="font-mono font-semibold">{demoCode}</span></p>}
                     <button type="button" onClick={() => { setCodeSent(false); setDemoCode(null) }} className="mt-1.5 text-xs font-medium text-slate-500 hover:text-ink-900">
                       Zmień numer / wyślij ponownie
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {verified && (
                   <div className="animate-fade-up space-y-3">
-                    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-sand-50 p-3 ring-1 ring-slate-200">
+                    <fieldset className="flex items-center justify-between gap-3 rounded-xl bg-sand-50 p-3 ring-1 ring-slate-200">
+                      <legend className="sr-only">Czy jesteś przedsiębiorcą?</legend>
                       <span className="text-sm font-medium text-ink-900">Jestem przedsiębiorcą</span>
-                      <span className="relative inline-flex shrink-0">
-                        <input type="checkbox" role="switch" checked={business} onChange={(e) => setBusiness(e.target.checked)} className="peer sr-only" />
-                        <span className="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-400" />
-                        <span className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+                      <span className="flex gap-1.5" role="radiogroup" aria-label="Jestem przedsiębiorcą">
+                        {([true, false] as const).map((v) => (
+                          <button key={String(v)} type="button" role="radio" aria-checked={business === v} onClick={() => setBusiness(v)} className={cx('w-14 rounded-lg py-1.5 text-sm font-semibold ring-1 ring-inset transition', business === v ? 'bg-ink-900 text-white ring-ink-900' : 'bg-white text-slate-700 ring-slate-300 hover:ring-slate-400')}>
+                            {v ? 'Tak' : 'Nie'}
+                          </button>
+                        ))}
                       </span>
-                    </label>
-                    {business && (
+                    </fieldset>
+                    {business === true && (
                       <div className="animate-fade-up">
                         <label htmlFor="wl-nip" className="mb-1.5 block text-sm font-medium text-slate-800">
                           NIP
@@ -296,7 +370,7 @@ export default function WaitlistPage() {
                         {nip && !nipOk && <p className="mt-1 text-xs text-red-700">Sprawdź NIP – suma kontrolna się nie zgadza.</p>}
                       </div>
                     )}
-                    <Button type="submit" variant="accent" className="w-full" size="lg" disabled={!nipOk || busy} icon={busy ? <Loader2 className="size-4 animate-spin" /> : <Gift className="size-4" />}>
+                    <Button type="submit" variant="accent" className="w-full" size="lg" disabled={business === null || !nipOk || busy} icon={busy ? <Loader2 className="size-4 animate-spin" /> : <Gift className="size-4" />}>
                       Zapisuję się i odbieram miesiąc Pro
                     </Button>
                   </div>
@@ -376,8 +450,19 @@ export function WaitlistThanksPage() {
   }
   const shareText = `Dołącz do Prawo.ai przed startem – dostaniesz miesiąc Pro gratis: ${data.link}`
 
+  const launchAt = info?.launchAt ?? data.launchAt
   return (
-    <Shell>
+    <Shell
+      right={
+        launchAt && (
+          <span className="flex items-center gap-2">
+            <span className="hidden text-xs font-medium uppercase tracking-[0.14em] text-white/60 sm:inline">Start {startLabel(launchAt)} za</span>
+            <MiniCountdown to={launchAt} />
+          </span>
+        )
+      }
+    >
+      <Confetti />
       <div className="grid gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:pt-10">
         <section>
           <p className="inline-flex items-center gap-2 rounded-full bg-brand-400/15 px-3 py-1.5 text-sm font-medium text-brand-200 ring-1 ring-brand-300/30">
@@ -394,18 +479,20 @@ export function WaitlistThanksPage() {
               <p className="mt-2 text-sm text-white/60">Tu pojawi się wideo powitalne (1:1)</p>
             </div>
           </div>
-          {(info?.launchAt ?? data.launchAt) && (
-            <div className="mt-6">
-              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-white/60">Start za</p>
-              <Countdown to={info?.launchAt ?? data.launchAt} compact />
-            </div>
-          )}
         </section>
 
         <section className="space-y-4">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-400 to-brand-600 p-5 text-ink-950 shadow-2xl sm:p-6">
+            <div className="pointer-events-none absolute -right-8 -top-10 size-40 rounded-full bg-white/25 blur-2xl" aria-hidden />
+            <p className="relative flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.12em]">
+              <Gift className="size-4" aria-hidden /> Zaproś i zyskaj
+            </p>
+            <p className="relative mt-2 text-3xl font-semibold leading-tight sm:text-4xl">+1 miesiąc Pro gratis</p>
+            <p className="relative mt-1 text-lg font-medium">za każdą osobę, która zapisze się z Twojego linku i zaloguje w ciągu 30 dni od startu.</p>
+            <p className="relative mt-3 inline-flex rounded-full bg-ink-950/10 px-3 py-1 text-sm font-semibold">Maksymalnie {MAX_BONUS} miesięcy · wartość do {(MAX_BONUS * PRO_VALUE).toLocaleString('pl-PL')} zł</p>
+          </div>
           <div className="rounded-3xl bg-white p-5 text-ink-900 shadow-2xl sm:p-6">
             <h2 className="text-lg font-semibold">Twój link do zaproszeń</h2>
-            <p className="mt-1 text-sm text-slate-600">Za każdą osobę, która zapisze się na listę z Twojego linku i zaloguje w ciągu 30 dni od startu, dostajesz kolejny miesiąc Pro gratis – maksymalnie {MAX_BONUS} miesięcy.</p>
             <div className="mt-4 flex gap-2">
               <input readOnly value={data.link} onFocus={(e) => e.target.select()} aria-label="Twój link do zaproszeń" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm" />
               <Button variant="primary" onClick={copy} icon={copied ? <Check className="size-4" /> : <Copy className="size-4" />}>

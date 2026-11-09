@@ -48,6 +48,7 @@ export default function App() {
       <Route path="d/:shareId" element={<SharedContractPage />} />
       <Route path="zespol/:token" element={<TeamContractPage />} />
       <Route path="waitlist" element={<WaitlistPage />} />
+      <Route path="dolacz/:code" element={<WaitlistPage />} />
       <Route path="waitlist/dziekujemy/:ref" element={<WaitlistThanksPage />} />
       <Route path="d/:shareId/podpis" element={<SharedSignPage />} />
     </Routes>
