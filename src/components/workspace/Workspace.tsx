@@ -26,7 +26,7 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react'
-import type { ChatMessage, Clause, Contract, PartyId, Collaborator } from '../../types'
+import type { ChatMessage, Clause, Contract, PartyId, Collaborator, SharedComment } from '../../types'
 import { useStore } from '../../store/AppStore'
 import { acceptCurrentVersion, addComment, addSignature, commentProposal, decideFinding, editDraftClauses, resolveProposal, revokeAcceptance, submitProposal } from '../../lib/contractOps'
 import { cx, displayStatus, formatDateTime, formatRelative, otherParty } from '../../lib/utils'
@@ -55,7 +55,7 @@ import { ClauseBody, ClauseHeading, DocumentHeader, PartiesColumns, SignatureStr
 import { isPartiesClause, partiesClauseIsGenerated } from '../../lib/documentFormat'
 import { downloadContractPdf } from '../../lib/pdf'
 
-type Panel = 'dokument' | 'analiza' | 'asystent' | 'terminy' | 'historia'
+type Panel = 'dokument' | 'analiza' | 'komentarze' | 'asystent' | 'terminy' | 'historia'
 
 export interface WorkspaceProps {
   contract: Contract
@@ -76,7 +76,8 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const hasAnalysis = isOwner && !!c.analysis
-  const defaultPanel: Exclude<Panel, 'dokument'> = collaborator ? 'historia' : hasAnalysis && c.stage === 'draft' ? 'analiza' : 'asystent'
+  const hasDiscussion = c.comments.length > 0 || c.proposals.some((p) => p.status === 'open')
+  const defaultPanel: Exclude<Panel, 'dokument'> = collaborator ? (hasDiscussion ? 'komentarze' : 'historia') : hasAnalysis && c.stage === 'draft' ? 'analiza' : c.stage !== 'draft' && hasDiscussion ? 'komentarze' : 'asystent'
   // „negocjacje” – stare linki: sugestie są teraz przy zapisach w dokumencie
   const rawPanel = params.get('panel')
   const panelParam = (rawPanel === 'negocjacje' ? 'dokument' : rawPanel) as Panel | null
@@ -246,18 +247,23 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
 
   // Terminy w ciągu 7 dni (lub po terminie), niewykonane
   const upcomingDeadlines = (c.deadlines ?? []).filter((d) => !d.done && d.date && daysUntil(d.date) <= 7).length
+  // Komentarze widoczne dla oglądającego (wewnętrzne – tylko strona właściciela)
+  const visibleComments = c.comments.filter((cm) => !cm.internal || viewer === c.ownerPartyId)
   const tabs = useMemo(() => {
     const t: { id: Panel; label: string; hint: string; icon: ReactNode; count?: number }[] = []
+    const discussion = visibleComments.length + c.proposals.filter((p) => p.status === 'open').length
     if (collaborator) {
+      t.push({ id: 'komentarze', label: 'Komentarze', hint: 'Komentarze i sugestie przy zapisach', icon: <MessageSquare className="size-4" aria-hidden />, count: discussion })
       t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
       return t
     }
     if (hasAnalysis) t.push({ id: 'analiza', label: 'Uwagi', hint: 'Ocena umowy i propozycje zmian', icon: <ScanSearch className="size-4" aria-hidden />, count: pendingFindings })
+    if (discussion > 0 || c.stage !== 'draft') t.push({ id: 'komentarze', label: 'Komentarze', hint: 'Komentarze i sugestie przy zapisach', icon: <MessageSquare className="size-4" aria-hidden />, count: discussion })
     t.push({ id: 'asystent', label: 'Asystent', hint: 'Zapytaj albo poproś o zmianę', icon: <Bot className="size-4" aria-hidden /> })
     if (isOwner) t.push({ id: 'terminy', label: 'Terminy', hint: 'Kalendarz terminów i przypomnienia', icon: <CalendarClock className="size-4" aria-hidden />, count: upcomingDeadlines })
     t.push({ id: 'historia', label: 'Historia', hint: 'Wersje i aktywność', icon: <History className="size-4" aria-hidden /> })
     return t
-  }, [hasAnalysis, pendingFindings, openProposals.length, isOwner, upcomingDeadlines, collaborator])
+  }, [hasAnalysis, pendingFindings, openProposals.length, isOwner, upcomingDeadlines, collaborator, visibleComments.length, c.proposals, c.stage])
 
   const stages = [
     { id: 'draft', label: 'Projekt' },
@@ -310,6 +316,7 @@ export function Workspace({ contract: c, viewer, viewerName, isOwner, hasAccount
           persona={isOwner ? personaFor(appState.profile) : undefined}
         />
       )
+    if (p === 'komentarze') return <DiscussionPanel c={c} viewer={viewer} comments={visibleComments} onJump={(id) => selectClause(id)} />
     if (p === 'terminy' && isOwner) return <DeadlinesPanel c={c} onChange={(fn) => updateContract(c.id, (x) => ({ ...x, deadlines: fn(x.deadlines) }))} onOpenClause={(id) => selectClause(id)} />
     // Druga strona nie widzi wpisów wewnętrznych (zespół właściciela, komentarze wewnętrzne).
     return <HistoryPanel c={viewer === c.ownerPartyId ? c : { ...c, activity: c.activity.filter((a) => !a.internal) }} />
@@ -1377,6 +1384,66 @@ function MoreMenu({ items }: { items: { label: string; icon: ReactNode; onClick:
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Panel „Komentarze”: wszystkie komentarze i sugestie w jednym miejscu, z odnośnikiem do zapisu.
+ * Ułatwia odnalezienie dyskusji w długiej umowie.
+ */
+function DiscussionPanel({ c, viewer, comments, onJump }: { c: Contract; viewer: PartyId; comments: SharedComment[]; onJump: (clauseId: string) => void }) {
+  const idx = new Map(c.clauses.map((cl, i) => [cl.id, i]))
+  const label = (id: string | null) => {
+    if (!id) return 'Cała umowa'
+    const i = idx.get(id)
+    return i === undefined ? 'Zapis' : `§ ${i + 1} ${c.clauses[i].title}`
+  }
+  type Item = { key: string; at: string; clauseId: string | null; kind: 'sugestia' | 'komentarz'; author: string; text: string; status?: string; internal?: boolean; replies?: number; newReply?: boolean }
+  const items: Item[] = [
+    ...c.proposals
+      .filter((p) => p.status === 'open')
+      .map((p) => {
+        const last = (p.thread ?? [])[(p.thread ?? []).length - 1]
+        return { key: `p:${p.id}`, at: last?.createdAt ?? p.createdAt, clauseId: p.clauseId, kind: 'sugestia' as const, author: p.authorPartyId === viewer ? 'Ty' : p.authorName, text: last ? `${last.authorName}: ${last.text}` : p.comment || 'Sugestia zmiany brzmienia', replies: (p.thread ?? []).length, newReply: !!last && last.authorPartyId !== viewer }
+      }),
+    ...comments.map((cm) => ({ key: `c:${cm.id}`, at: cm.createdAt, clauseId: cm.clauseId, kind: 'komentarz' as const, author: cm.authorPartyId === viewer && !cm.internal ? 'Ty' : cm.authorName, text: cm.text, internal: cm.internal })),
+  ]
+  // Kolejność jak w dokumencie, w obrębie zapisu – od najnowszych
+  items.sort((a, b) => (idx.get(a.clauseId ?? '') ?? -1) - (idx.get(b.clauseId ?? '') ?? -1) || b.at.localeCompare(a.at))
+  if (!items.length)
+    return (
+      <EmptyState icon={<MessageSquare className="size-6" />} title="Brak komentarzy">
+        Kliknij tytuł zapisu w umowie i wybierz „Skomentuj” albo „Zaproponuj zmianę”. Wszystkie komentarze i sugestie zbierzemy tutaj.
+      </EmptyState>
+    )
+  return (
+    <div className="rounded-2xl bg-white p-2 ring-1 ring-slate-200">
+      <p className="px-3 pb-1 pt-2 text-xs text-slate-500">Kliknij, aby przejść do miejsca w umowie.</p>
+      <ul>
+        {items.map((it) => (
+          <li key={it.key}>
+            <button type="button" onClick={() => it.clauseId && onJump(it.clauseId)} className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-slate-50">
+              <span className={cx('mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg', it.kind === 'sugestia' ? 'bg-amber-50 text-amber-700' : 'bg-brand-50 text-brand-700')} aria-hidden>
+                {it.kind === 'sugestia' ? <Pencil className="size-4" /> : <MessageSquare className="size-4" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="font-semibold text-brand-700">{label(it.clauseId)}</span>
+                  {it.kind === 'sugestia' && <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800">Sugestia</span>}
+                  {it.internal && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800">wewnętrzny</span>}
+                  {it.newReply && <span className="rounded bg-red-50 px-1.5 py-0.5 font-semibold text-red-700">nowy komentarz</span>}
+                </span>
+                <span className="mt-0.5 line-clamp-2 block text-sm text-slate-800">{it.text}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {it.author} · {formatRelative(it.at)}
+                  {it.replies ? ` · ${it.replies} ${it.replies === 1 ? 'komentarz' : 'komentarze'}` : ''}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
