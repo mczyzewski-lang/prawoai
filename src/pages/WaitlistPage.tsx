@@ -488,14 +488,35 @@ export function WaitlistThanksPage() {
         </section>
 
         <section className="space-y-4">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-400 to-brand-600 p-5 text-ink-950 shadow-2xl sm:p-6">
-            <div className="pointer-events-none absolute -right-8 -top-10 size-40 rounded-full bg-white/25 blur-2xl" aria-hidden />
-            <p className="relative flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.12em]">
-              <Gift className="size-4" aria-hidden /> Zaproś i zyskaj
-            </p>
-            <p className="relative mt-2 text-3xl font-semibold leading-tight sm:text-4xl">+1 miesiąc Pro gratis</p>
-            <p className="relative mt-1 text-lg font-medium">za każdą osobę, która zapisze się z Twojego linku i zaloguje w ciągu 30 dni od startu.</p>
-            <p className="relative mt-3 inline-flex rounded-full bg-ink-950/10 px-3 py-1 text-sm font-semibold">Maksymalnie {MAX_BONUS} miesięcy · wartość do {(MAX_BONUS * PRO_VALUE).toLocaleString('pl-PL')} zł</p>
+          {/* Karta premium: mechanika poleceń */}
+          <div className="relative rounded-3xl bg-gradient-to-br from-amber-200 via-amber-400/70 to-brand-400/70 p-px shadow-2xl shadow-black/40">
+            <div className="relative overflow-hidden rounded-[calc(1.5rem-1px)] bg-gradient-to-br from-[#0d1f24] via-ink-950 to-[#10282c] p-5 sm:p-6">
+              <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-amber-300/15 blur-3xl" aria-hidden />
+              <div className="pointer-events-none absolute -bottom-20 -left-10 size-48 rounded-full bg-brand-400/15 blur-3xl" aria-hidden />
+              <p className="relative inline-flex items-center gap-1.5 rounded-full bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200 ring-1 ring-amber-300/30">
+                <Gift className="size-3.5" aria-hidden /> Program poleceń
+              </p>
+              <div className="relative mt-4 flex items-end gap-4">
+                <p className="bg-gradient-to-b from-amber-100 to-amber-400 bg-clip-text text-6xl font-bold leading-none tracking-tight text-transparent sm:text-7xl">+1</p>
+                <p className="pb-1 text-xl font-semibold leading-tight text-white sm:text-2xl">
+                  miesiąc Pro
+                  <span className="block text-amber-200">gratis</span>
+                </p>
+              </div>
+              <p className="relative mt-4 text-[15px] leading-relaxed text-white/85">
+                za <span className="font-semibold text-white">każdą osobę</span>, która zapisze się z Twojego linku i <span className="font-semibold text-white">zaloguje w ciągu 30 dni od startu</span>.
+              </p>
+              <div className="relative mt-5 grid grid-cols-2 gap-2">
+                <div className="rounded-2xl bg-white/[0.06] px-3 py-2.5 ring-1 ring-white/10">
+                  <p className="text-[11px] uppercase tracking-wide text-white/55">Maksymalnie</p>
+                  <p className="text-lg font-semibold text-white">{MAX_BONUS} miesięcy</p>
+                </div>
+                <div className="rounded-2xl bg-amber-300/10 px-3 py-2.5 ring-1 ring-amber-300/30">
+                  <p className="text-[11px] uppercase tracking-wide text-amber-200/80">Wartość do</p>
+                  <p className="text-lg font-semibold text-amber-100">{(MAX_BONUS * PRO_VALUE).toLocaleString('pl-PL', { useGrouping: true })} zł</p>
+                </div>
+              </div>
+            </div>
           </div>
           <div className="rounded-3xl bg-white p-5 text-ink-900 shadow-2xl sm:p-6">
             <h2 className="text-lg font-semibold">Twój link do zaproszeń</h2>
