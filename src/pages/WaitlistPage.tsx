@@ -367,7 +367,13 @@ export default function WaitlistPage() {
                           NIP
                         </label>
                         <input id="wl-nip" inputMode="numeric" value={nip} onChange={(e) => setNip(e.target.value.replace(/[^\d-]/g, '').slice(0, 13))} placeholder="000-000-00-00" className={cx('h-11 w-full rounded-xl border px-3.5 text-[15px] focus:outline-none focus:ring-4', nip && !nipOk ? 'border-red-400 ring-red-100' : 'border-slate-300 focus:border-brand-500 focus:ring-brand-100')} />
-                        {nip && !nipOk && <p className="mt-1 text-xs text-red-700">Sprawdź NIP – suma kontrolna się nie zgadza.</p>}
+                        {nip && !nipOk ? (
+                          <p className="mt-1 text-xs text-red-700">Sprawdź NIP – suma kontrolna się nie zgadza.</p>
+                        ) : (
+                          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-slate-600">
+                            <Gift className="mt-0.5 size-3.5 shrink-0 text-brand-600" aria-hidden /> Bezpłatne miesiące Pro przypiszemy do konta tej firmy – skorzysta z nich cały Twój zespół.
+                          </p>
+                        )}
                       </div>
                     )}
                     <Button type="submit" variant="accent" className="w-full" size="lg" disabled={business === null || !nipOk || busy} icon={busy ? <Loader2 className="size-4 animate-spin" /> : <Gift className="size-4" />}>
