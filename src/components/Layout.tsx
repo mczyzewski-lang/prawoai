@@ -24,9 +24,9 @@ const NAV = [
 ]
 /** Tylko w nawigacji desktopowej (na telefonie – w menu konta). */
 const NAV_EXTRA = [
-  { to: '/terminy', label: 'Terminy', icon: CalendarClock },
-  { to: '/windykacja', label: 'Windykacja', icon: Banknote },
-  { to: '/inne', label: 'Inne', icon: Layers },
+  { to: '/terminy', label: 'Terminy', short: 'Terminy', icon: CalendarClock },
+  { to: '/windykacja', label: 'Windykacja', short: 'Windykacja', icon: Banknote },
+  { to: '/inne', label: 'Inne', short: 'Inne', icon: Layers },
 ]
 
 function ProfileMenu() {
@@ -53,7 +53,7 @@ function ProfileMenu() {
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu" className="flex items-center gap-2 rounded-full p-1 pr-1 hover:bg-ink-900/5 md:pr-3" aria-label="Menu konta">
         <Avatar name={state.profile.name} size="sm" />
-        <span className="hidden text-sm font-medium text-ink-900 lg:inline">{state.profile.name}</span>
+        <span className="hidden whitespace-nowrap text-sm font-medium text-ink-900 2xl:inline">{state.profile.name}</span>
       </button>
       {open && (
         <div role="menu" className="animate-fade-up absolute right-0 top-11 z-40 w-72 rounded-2xl bg-white p-2 shadow-xl ring-1 ring-slate-200">
@@ -154,19 +154,22 @@ export function AppLayout() {
         Przejdź do treści
       </a>
       <header className="no-print sticky top-0 z-30 border-b border-slate-200/70 bg-sand-50/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
           <Link to="/" aria-label="Prawo.ai – strona główna">
             <Logo />
           </Link>
-          <nav aria-label="Główna nawigacja" className="hidden flex-1 items-center gap-1 md:flex">
+          <nav aria-label="Główna nawigacja" className="hidden min-w-0 flex-1 items-center gap-0.5 md:flex">
             {[...NAV.slice(1), ...NAV_EXTRA].map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
-                className={({ isActive }) => cx('flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition', isActive ? 'bg-ink-900 text-white' : 'text-slate-700 hover:bg-ink-900/5 hover:text-ink-900')}
+                title={n.label}
+                className={({ isActive }) => cx('flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition', isActive ? 'bg-ink-900 text-white' : 'text-slate-700 hover:bg-ink-900/5 hover:text-ink-900')}
               >
-                <n.icon className="size-4" aria-hidden />
-                {n.label}
+                <n.icon className="size-4 shrink-0" aria-hidden />
+                {/* Krótkie nazwy na węższych ekranach – całość zawsze w jednej linii */}
+                <span className="hidden lg:inline xl:hidden">{n.short}</span>
+                <span className="hidden xl:inline">{n.label}</span>
                 {n.to === '/terminy' && dueSoon > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-[11px] font-bold text-ink-950">{dueSoon}</span>}
               </NavLink>
             ))}
