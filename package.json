@@ -1,7 +1,7 @@
 {
   "name": "prawo-ai",
   "private": true,
-  "version": "0.33.0",
+  "version": "0.33.1",
   "description": "Prawo.ai – aplikacja demonstracyjna do tworzenia, analizy, negocjowania i podpisywania umów oraz rozmowy z asystentem prawnym.",
   "type": "module",
   "engines": {

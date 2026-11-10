@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Banknote, Bot, BookUser, CalendarClock, Check, Copy, FileSearch, Gift, Handshake, LayoutTemplate, Loader2, MessageSquare, PenLine, PlayCircle, Scale, Share2, Sparkles, Users } from 'lucide-react'
+import { Banknote, Bot, Building2, CalendarClock, Check, Copy, Gift, Handshake, LayoutTemplate, Loader2, MessageSquare, PenLine, PlayCircle, Scale, Share2, Sparkles } from 'lucide-react'
 import { Logo } from '../components/Layout'
 import { Button } from '../components/ui'
 import { cx, plural } from '../lib/utils'
 
-/** Funkcje Prawo.ai na stronie zapisu. */
-const FEATURES = [
-  { icon: Sparkles, title: 'Tworzenie umów z opisu', text: 'Opisz sytuację własnymi słowami – AI przygotuje projekt umowy w około 30 sekund.' },
-  { icon: LayoutTemplate, title: 'Wzory umów', text: 'Ponad 50 wzorów sprawdzonych przez prawników PRAVNA.pl – i Twoje własne wzory.' },
-  { icon: FileSearch, title: 'Analiza umów', text: 'Ocena z Twojej perspektywy: ryzyka, priorytety i gotowe brzmienie poprawek.' },
-  { icon: MessageSquare, title: 'Komentarze przy zapisach', text: 'Jak w Google Docs – uwagi przypięte do konkretnych fragmentów umowy.' },
-  { icon: Handshake, title: 'Uzgadnianie z drugą stroną', text: 'Sugestie i komentarze w jednym dokumencie – Ty decydujesz: akceptuj, edytuj, odrzuć.' },
-  { icon: Bot, title: 'Asystent AI', text: 'Zmienia umowę na Twoją prośbę, wyjaśnia zapisy i wstawia dane osób przez @.' },
-  { icon: PenLine, title: 'Podpis na ekranie', text: 'Palcem lub myszką – wyślij do podpisu linkiem, e-mailem albo SMS-em.' },
-  { icon: CalendarClock, title: 'Terminy i przypomnienia', text: 'Płatności, okna wypowiedzenia, gwarancje – przypomnimy, zanim będzie za późno.' },
-  { icon: Banknote, title: 'Windykacja', text: 'Odsetki i rekompensata wyliczone automatycznie, przypomnienie i wezwanie do zapłaty.' },
-  { icon: Users, title: 'Praca z zespołem', text: 'Wspólnik lub księgowa komentują i zatwierdzają umowę, zanim ją podpiszesz.' },
-  { icon: Scale, title: 'Weryfikacja przez prawnika', text: 'Prawnik PRAVNA.pl sprawdzi umowę – stała cena i wynik w jeden dzień roboczy.' },
-  { icon: BookUser, title: 'Adresy i dane', text: 'Klienci, firmy i produkty zapisane raz – w każdej umowie wstawisz je przez @.' },
+/** Główny filar: wszystko kręci się wokół umowy. */
+const CORE = {
+  title: 'Tworzenie i analiza umów z AI',
+  text: 'Opisz, czego potrzebujesz, albo wgraj umowę – w kilkadziesiąt sekund dostajesz gotowy projekt lub ocenę z Twojej perspektywy: ryzyka, priorytety i gotowe poprawki.',
+  items: [
+    { icon: LayoutTemplate, label: 'Wzory sprawdzone przez prawników' },
+    { icon: MessageSquare, label: 'Komentarze przy zapisach' },
+    { icon: Handshake, label: 'Uzgodnienia z drugą stroną' },
+    { icon: Bot, label: 'Asystent, który poprawia umowę' },
+  ],
+}
+
+/** Kolejne etapy życia umowy. */
+const STAGES = [
+  { icon: PenLine, title: 'Podpisywanie umów', text: 'Na ekranie, palcem lub myszką – wysyłka do podpisu linkiem lub SMS-em.' },
+  { icon: CalendarClock, title: 'Terminy', text: 'Płatności i okna wypowiedzenia z przypomnieniem przed czasem.' },
+  { icon: Banknote, title: 'Windykacja', text: 'Odsetki wyliczone automatycznie, przypomnienie i wezwanie do zapłaty.' },
+  { icon: Scale, title: 'Prawnicy PRAVNA.pl', text: 'Weryfikacja umowy przez radcę lub adwokata, gdy potrzebujesz pewności.' },
+  { icon: Building2, title: 'Konto firmowe', text: 'Zespół, wspólne wzory i dane klientów – wspólnik zatwierdza przed podpisem.' },
 ]
 
 const PRO_VALUE = 290
@@ -389,15 +394,34 @@ export default function WaitlistPage() {
 
       <section aria-labelledby="features-h" className="mt-16 lg:mt-24">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-300">Co znajdziesz w Prawo.ai</p>
-        <h2 id="features-h" className="mt-2 max-w-2xl text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Wszystko, czego potrzebujesz do umów – w jednym miejscu</h2>
-        <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, text }) => (
-            <li key={title} className="group rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:ring-brand-300/30">
-              <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-brand-400/25 to-brand-600/10 text-brand-200 ring-1 ring-brand-300/25 transition group-hover:scale-105" aria-hidden>
-                <Icon className="size-5" />
+        <h2 id="features-h" className="mt-2 max-w-2xl text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Cała umowa w jednym miejscu – od pomysłu po zapłatę</h2>
+
+        <div className="mt-8 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500/20 via-white/[0.05] to-transparent p-6 ring-1 ring-brand-300/25 sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+            <div className="lg:max-w-md">
+              <span className="grid size-12 place-items-center rounded-2xl bg-brand-400/25 text-brand-100 ring-1 ring-brand-300/30" aria-hidden>
+                <Sparkles className="size-6" />
               </span>
-              <h3 className="mt-4 font-semibold text-white">{title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-white/65">{text}</p>
+              <h3 className="mt-4 text-2xl font-semibold text-white sm:text-3xl">{CORE.title}</h3>
+              <p className="mt-2 leading-relaxed text-white/70">{CORE.text}</p>
+            </div>
+            <ul className="grid flex-1 gap-2.5 sm:grid-cols-2">
+              {CORE.items.map(({ icon: Icon, label }) => (
+                <li key={label} className="flex items-center gap-3 rounded-2xl bg-white/[0.06] px-4 py-3.5 text-[15px] font-medium text-white ring-1 ring-white/10">
+                  <Icon className="size-5 shrink-0 text-brand-300" aria-hidden />
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {STAGES.map(({ icon: Icon, title, text }) => (
+            <li key={title} className="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/10">
+              <Icon className="size-6 text-brand-300" aria-hidden />
+              <h3 className="mt-3 font-semibold text-white">{title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-white/60">{text}</p>
             </li>
           ))}
         </ul>
