@@ -373,9 +373,15 @@ export default function WaitlistPage() {
                         {nip && !nipOk ? (
                           <p className="mt-1 text-xs text-red-700">Sprawdź NIP – suma kontrolna się nie zgadza.</p>
                         ) : (
-                          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-slate-600">
-                            <Gift className="mt-0.5 size-3.5 shrink-0 text-brand-600" aria-hidden /> Bezpłatne miesiące Pro przypiszemy do konta tej firmy – skorzysta z nich cały Twój zespół.
-                          </p>
+                          <div className="mt-2 flex items-start gap-3 rounded-xl bg-gradient-to-br from-brand-50 to-amber-50 p-3 ring-1 ring-brand-200">
+                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-600 text-white" aria-hidden>
+                              <Gift className="size-4" />
+                            </span>
+                            <p className="text-sm leading-snug text-ink-900">
+                              <span className="font-semibold">Bezpłatne miesiące Pro trafią na konto tej firmy</span>
+                              <span className="block text-slate-600">– skorzysta z nich cały Twój zespół.</span>
+                            </p>
+                          </div>
                         )}
                       </div>
                     )}
