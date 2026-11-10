@@ -1,9 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { BadgeCheck, Check, Copy, Gift, Loader2, MessageSquare, PlayCircle, Share2, ShieldCheck, Sparkles, Users } from 'lucide-react'
+import { Banknote, Bot, BookUser, CalendarClock, Check, Copy, FileSearch, Gift, Handshake, LayoutTemplate, Loader2, MessageSquare, PenLine, PlayCircle, Scale, Share2, Sparkles, Users } from 'lucide-react'
 import { Logo } from '../components/Layout'
 import { Button } from '../components/ui'
-import { cx } from '../lib/utils'
+import { cx, plural } from '../lib/utils'
+
+/** Funkcje Prawo.ai na stronie zapisu. */
+const FEATURES = [
+  { icon: Sparkles, title: 'Tworzenie umów z opisu', text: 'Opisz sytuację własnymi słowami – AI przygotuje projekt umowy w około 30 sekund.' },
+  { icon: LayoutTemplate, title: 'Wzory umów', text: 'Ponad 50 wzorów sprawdzonych przez prawników PRAVNA.pl – i Twoje własne wzory.' },
+  { icon: FileSearch, title: 'Analiza umów', text: 'Ocena z Twojej perspektywy: ryzyka, priorytety i gotowe brzmienie poprawek.' },
+  { icon: MessageSquare, title: 'Komentarze przy zapisach', text: 'Jak w Google Docs – uwagi przypięte do konkretnych fragmentów umowy.' },
+  { icon: Handshake, title: 'Uzgadnianie z drugą stroną', text: 'Sugestie i komentarze w jednym dokumencie – Ty decydujesz: akceptuj, edytuj, odrzuć.' },
+  { icon: Bot, title: 'Asystent AI', text: 'Zmienia umowę na Twoją prośbę, wyjaśnia zapisy i wstawia dane osób przez @.' },
+  { icon: PenLine, title: 'Podpis na ekranie', text: 'Palcem lub myszką – wyślij do podpisu linkiem, e-mailem albo SMS-em.' },
+  { icon: CalendarClock, title: 'Terminy i przypomnienia', text: 'Płatności, okna wypowiedzenia, gwarancje – przypomnimy, zanim będzie za późno.' },
+  { icon: Banknote, title: 'Windykacja', text: 'Odsetki i rekompensata wyliczone automatycznie, przypomnienie i wezwanie do zapłaty.' },
+  { icon: Users, title: 'Praca z zespołem', text: 'Wspólnik lub księgowa komentują i zatwierdzają umowę, zanim ją podpiszesz.' },
+  { icon: Scale, title: 'Weryfikacja przez prawnika', text: 'Prawnik PRAVNA.pl sprawdzi umowę – stała cena i wynik w jeden dzień roboczy.' },
+  { icon: BookUser, title: 'Adresy i dane', text: 'Klienci, firmy i produkty zapisane raz – w każdej umowie wstawisz je przez @.' },
+]
 
 const PRO_VALUE = 290
 const MAX_BONUS = 18
@@ -239,25 +255,7 @@ export default function WaitlistPage() {
             Do startu zostało
           </p>
           <div className="mt-3">{info ? <Countdown to={info.launchAt} /> : <div className="h-24" />}</div>
-          <ul className="mt-8 grid gap-3 sm:grid-cols-2">
-            {[
-              [Sparkles, 'Umowa z opisu w 30 sekund'],
-              [ShieldCheck, 'Ocena umowy z Twojej perspektywy'],
-              [Users, 'Uzgadnianie i podpis z drugą stroną'],
-              [BadgeCheck, 'Wzory sprawdzone przez prawników'],
-            ].map(([Icon, t]) => {
-              const I = Icon as typeof Sparkles
-              return (
-                <li key={t as string} className="flex items-center gap-2.5 text-sm text-white/85">
-                  <span className="grid size-8 place-items-center rounded-lg bg-white/10 text-brand-300" aria-hidden>
-                    <I className="size-4" />
-                  </span>
-                  {t as string}
-                </li>
-              )
-            })}
-          </ul>
-          {info && info.count > 0 && <p className="mt-6 text-sm text-white/60">Na liście jest już {info.count} {info.count === 1 ? 'osoba' : 'osób'}.</p>}
+          {info && info.count > 0 && <p className="mt-6 text-sm text-white/60">Na liście jest już {info.count} {plural(info.count, 'osoba', 'osoby', 'osób')}.</p>}
         </section>
 
         <section aria-labelledby="wl-form" className="rounded-3xl bg-white p-5 text-ink-900 shadow-2xl sm:p-6">
@@ -388,6 +386,28 @@ export default function WaitlistPage() {
           <p className="mt-4 text-xs text-slate-500">Bez opłat i bez karty. Po starcie dostaniesz SMS z linkiem do logowania.</p>
         </section>
       </div>
+
+      <section aria-labelledby="features-h" className="mt-16 lg:mt-24">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-300">Co znajdziesz w Prawo.ai</p>
+        <h2 id="features-h" className="mt-2 max-w-2xl text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Wszystko, czego potrzebujesz do umów – w jednym miejscu</h2>
+        <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map(({ icon: Icon, title, text }) => (
+            <li key={title} className="group rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/10 transition hover:bg-white/[0.07] hover:ring-brand-300/30">
+              <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-brand-400/25 to-brand-600/10 text-brand-200 ring-1 ring-brand-300/25 transition group-hover:scale-105" aria-hidden>
+                <Icon className="size-5" />
+              </span>
+              <h3 className="mt-4 font-semibold text-white">{title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-white/65">{text}</p>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-white/[0.06] p-6 ring-1 ring-white/10">
+          <p className="text-lg font-semibold text-white">Zapisz się przed startem i odbierz miesiąc Pro gratis.</p>
+          <Button variant="accent" size="lg" icon={<Gift className="size-4" />} onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setTimeout(() => document.getElementById('wl-name')?.focus(), 400) }}>
+            Zapisz się na listę
+          </Button>
+        </div>
+      </section>
     </Shell>
   )
 }
